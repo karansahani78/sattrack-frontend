@@ -39,35 +39,46 @@ interface SatelliteStore {
   addFavorite: (sat: SatelliteSummary) => void;
   removeFavorite: (noradId: string) => void;
   isFavorite: (noradId: string) => boolean;
+
+  // ── V2: Notification unread count (lightweight — full data lives in useNotifications hook) ──
+  unreadNotificationCount: number;
+  setUnreadNotificationCount: (count: number) => void;
+  incrementUnreadCount: () => void;
+  clearUnreadCount: () => void;
 }
 
 export const useStore = create<SatelliteStore>()(
   persist(
     (set, get) => ({
-      // Auth
+      // ── Auth ────────────────────────────────────────────────────────────────
       token: null,
       user: null,
       setAuth: (token, user) => {
+        // Store under BOTH keys:
+        //   'sattrack_token' → persisted by zustand (partialize below)
+        //   'token'          → read by trackingApi.ts getToken() for V2 API calls
         localStorage.setItem('sattrack_token', token);
+        localStorage.setItem('token', token);
         set({ token, user });
       },
       clearAuth: () => {
         localStorage.removeItem('sattrack_token');
-        set({ token: null, user: null });
+        localStorage.removeItem('token');
+        set({ token: null, user: null, unreadNotificationCount: 0 });
       },
 
-      // Satellite selection
+      // ── Satellite selection ──────────────────────────────────────────────
       selectedNoradId: '25544',
       setSelectedSatellite: (noradId) => set({ selectedNoradId: noradId }),
 
-      // Live positions
+      // ── Live positions ───────────────────────────────────────────────────
       positions: {},
       updatePosition: (noradId, pos) =>
         set((state) => ({
           positions: { ...state.positions, [noradId]: pos },
         })),
 
-      // Multi-tracking
+      // ── Multi-tracking ───────────────────────────────────────────────────
       trackedIds: ['25544', '20580'],
       addTracked: (noradId) =>
         set((state) => ({
@@ -80,19 +91,19 @@ export const useStore = create<SatelliteStore>()(
           trackedIds: state.trackedIds.filter((id) => id !== noradId),
         })),
 
-      // Observer
+      // ── Observer ─────────────────────────────────────────────────────────
       observerLocation: null,
       setObserverLocation: (loc) => set({ observerLocation: loc }),
 
-      // Search
+      // ── Search ───────────────────────────────────────────────────────────
       searchQuery: '',
       setSearchQuery: (q) => set({ searchQuery: q }),
 
-      // Category
+      // ── Category filter ──────────────────────────────────────────────────
       categoryFilter: null,
       setCategoryFilter: (cat) => set({ categoryFilter: cat }),
 
-      // Favorites — isFavorite reads from get() to avoid stale closures
+      // ── Favorites ────────────────────────────────────────────────────────
       favorites: [],
       addFavorite: (sat) =>
         set((state) => ({
@@ -106,10 +117,27 @@ export const useStore = create<SatelliteStore>()(
         })),
       isFavorite: (noradId) =>
         get().favorites.some((f) => f.noradId === noradId),
+
+      // ── V2: Unread notification count ─────────────────────────────────────
+      // Kept in store so the Layout bell badge can read it without
+      // mounting the full useNotifications hook on every page.
+      // The useUnreadCount hook in hooks/index.ts keeps this in sync.
+      unreadNotificationCount: 0,
+      setUnreadNotificationCount: (count) =>
+        set({ unreadNotificationCount: count }),
+      incrementUnreadCount: () =>
+        set((state) => ({
+          unreadNotificationCount: state.unreadNotificationCount + 1,
+        })),
+      clearUnreadCount: () =>
+        set({ unreadNotificationCount: 0 }),
     }),
     {
       name: 'sattrack-store',
       storage: createJSONStorage(() => localStorage),
+      // Only persist what should survive a page refresh.
+      // Positions are volatile — they get refreshed on mount anyway.
+      // unreadNotificationCount is persisted so the badge survives a reload.
       partialize: (state) => ({
         token: state.token,
         user: state.user,
@@ -117,6 +145,7 @@ export const useStore = create<SatelliteStore>()(
         observerLocation: state.observerLocation,
         favorites: state.favorites,
         selectedNoradId: state.selectedNoradId,
+        unreadNotificationCount: state.unreadNotificationCount,
       }),
     }
   )

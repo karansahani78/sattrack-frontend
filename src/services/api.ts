@@ -7,18 +7,13 @@ import type {
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
-/**
- * Axios instance with JWT injection and unified error handling.
- * Token is stored in localStorage for persistence across refreshes.
- * In production, consider httpOnly cookies to mitigate XSS risk.
- */
 const client: AxiosInstance = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Request interceptor: attach JWT if available
+// ✅ Attach JWT to every request
 client.interceptors.request.use((config) => {
   const token = localStorage.getItem('sattrack_token');
   if (token) {
@@ -27,7 +22,7 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor: handle 401s globally
+// ✅ Handle 401 globally
 client.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -39,7 +34,9 @@ client.interceptors.response.use(
   }
 );
 
-// ---- Satellite APIs ----
+// ─────────────────────────────────────────────
+// Satellite APIs (UNCHANGED)
+// ─────────────────────────────────────────────
 
 export const satelliteApi = {
   list: (page = 0, size = 20, category?: string): Promise<PageResponse<SatelliteSummary>> =>
@@ -87,14 +84,35 @@ export const satelliteApi = {
     client.get(`/satellites/${noradId}/tle`).then(r => r.data),
 };
 
-// ---- Auth APIs ----
+// ─────────────────────────────────────────────
+// Auth APIs (FIXED)
+// ─────────────────────────────────────────────
 
 export const authApi = {
-  register: (username: string, email: string, password: string): Promise<AuthResponse> =>
-    client.post('/auth/register', { username, email, password }).then(r => r.data),
 
-  login: (username: string, password: string): Promise<AuthResponse> =>
-    client.post('/auth/login', { username, password }).then(r => r.data),
+  // ✅ Register and store token immediately
+  register: async (username: string, email: string, password: string): Promise<AuthResponse> => {
+    const response = await client.post('/auth/register', { username, email, password });
+
+    const token = response.data.token;
+    if (token) {
+      localStorage.setItem('sattrack_token', token);
+    }
+
+    return response.data;
+  },
+
+  // ✅ Login and store token from JSON body
+  login: async (username: string, password: string): Promise<AuthResponse> => {
+    const response = await client.post('/auth/login', { username, password });
+
+    const token = response.data.token;
+    if (token) {
+      localStorage.setItem('sattrack_token', token);
+    }
+
+    return response.data;
+  },
 
   profile: (): Promise<UserProfile> =>
     client.get('/auth/profile').then(r => r.data),
