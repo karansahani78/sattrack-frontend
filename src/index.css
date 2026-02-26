@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-space-950 text-white;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-space-900;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-space-600 rounded-full;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl;
+  }
+
+  .btn-primary {
+    @apply px-4 py-2 bg-satellite-blue hover:bg-blue-500 text-white rounded-lg 
+           font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply px-4 py-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg 
+           transition-colors duration-200;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .stat-label {
+    @apply text-xs text-gray-500 uppercase tracking-wider;
+  }
+
+  .stat-value {
+    @apply text-sm font-mono font-medium text-white;
+  }
+}
+
+/* Leaflet map dark mode overrides */
+.leaflet-container {
+  background: #03050a !important;
+}
+
+.leaflet-tile-pane {
+  filter: brightness(0.7) saturate(0.8) hue-rotate(180deg) invert(1);
+}
+
+.satellite-popup .leaflet-popup-content-wrapper {
+  @apply bg-space-800 border border-white/20 text-white rounded-xl;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+}
+
+.satellite-popup .leaflet-popup-tip {
+  background: #0a1628;
+}
+
+/* Orbit path animation */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+.orbit-path-animated {
+  animation: dash 30s linear infinite;
+}
