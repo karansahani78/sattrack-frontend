@@ -10,6 +10,7 @@ import { Profile } from './pages/Profile';
 import { Passes } from './pages/Passes';
 import { Conjunctions } from './pages/Conjunctions';
 import { Notifications } from './pages/Notifications';
+import { Doppler } from './pages/Doppler';
 import { useStore } from './stores/useStore';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -28,6 +29,8 @@ export default function App() {
         {/* V2 Tracking Routes */}
         <Route path="/passes" element={<Passes />} />
         <Route path="/conjunctions" element={<Conjunctions />} />
+        <Route path="/doppler" element={<Doppler />} />
+
         <Route
           path="/notifications"
           element={
