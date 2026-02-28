@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { MapPin, Crosshair, Maximize2, Minimize2 } from 'lucide-react';
 import { WorldMap } from '../components/WorldMap';
 import { SatelliteInfoPanel } from '../components/SatelliteInfoPanel';
-import { useLivePosition, useOrbitalTrack, useGeolocation, useUtcClock } from '../hooks';
+import { useLivePosition, useOrbitalTrack, useUtcClock } from '../hooks';
 import { useStore } from '../stores/useStore';
 import { satelliteApi } from '../services/api';
 import type { SatelliteSummary } from '../types';
@@ -23,8 +23,40 @@ export function Dashboard() {
   const [showSearch, setShowSearch] = useState(false);
   const [mapFullscreen, setMapFullscreen] = useState(false);
 
+  // ── GPS FIX: manage locating state locally — useGeolocation hook was causing
+  // a race condition (two simultaneous getCurrentPosition calls) which silently
+  // fails on macOS/desktop where CoreLocation reports kCLErrorLocationUnknown.
+  const [locating, setLocating] = useState(false);
+  const [locError, setLocError] = useState<string | null>(null);
+
+  const handleLocate = () => {
+    if (!navigator.geolocation || locating) return;
+    setLocating(true);
+    setLocError(null);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setObserverLocation({ lat: coords.latitude, lon: coords.longitude });
+        setLocating(false);
+        setLocError(null);
+      },
+      (err) => {
+        setLocating(false);
+        // Error code 2 = POSITION_UNAVAILABLE (kCLErrorLocationUnknown on macOS).
+        // This means the device has no GPS hardware or WiFi positioning failed.
+        // Show a helpful message so the user knows to set location via Profile.
+        const msgs: Record<number, string> = {
+          1: 'Permission denied — allow location in browser settings',
+          2: 'Position unavailable — set location manually in Profile',
+          3: 'Request timed out — try again',
+        };
+        setLocError(msgs[err.code] || 'Location unavailable');
+        console.warn('Geolocation error:', err.message);
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 }
+    );
+  };
+
   const now = useUtcClock();
-  const { locate, status: geoStatus } = useGeolocation();
 
   // ── All original API/hook logic untouched ────────────────────────────────
   const { position, loading, refresh } = useLivePosition(selectedNoradId);
@@ -129,22 +161,31 @@ export function Dashboard() {
 
       <div className="flex items-center gap-2 ml-auto">
         {/* Observer location */}
-        <button
-          onClick={locate}
-          disabled={geoStatus === 'loading'}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
-            observerLocation
-              ? 'bg-satellite-green/20 text-satellite-green border border-satellite-green/30'
-              : 'bg-white/5 text-gray-400 hover:bg-white/10'
-          }`}
-          title="Set observer location to your position"
-        >
-          {geoStatus === 'loading'
-            ? <Crosshair className="w-3.5 h-3.5 animate-spin" />
-            : <MapPin className="w-3.5 h-3.5" />
-          }
-          {observerLocation ? 'Located' : 'My Location'}
-        </button>
+        <div className="flex flex-col items-end gap-0.5">
+          <button
+            onClick={handleLocate}
+            disabled={locating}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+              observerLocation
+                ? 'bg-satellite-green/20 text-satellite-green border border-satellite-green/30'
+                : locError
+                ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                : 'bg-white/5 text-gray-400 hover:bg-white/10'
+            }`}
+            title={locError || 'Set observer location to your position'}
+          >
+            {locating
+              ? <Crosshair className="w-3.5 h-3.5 animate-spin" />
+              : <MapPin className="w-3.5 h-3.5" />
+            }
+            {locating ? 'Locating…' : observerLocation ? 'Located' : 'My Location'}
+          </button>
+          {locError && !observerLocation && (
+            <span className="text-[10px] text-red-400/70 max-w-[180px] text-right leading-tight">
+              {locError}
+            </span>
+          )}
+        </div>
 
         {/* Track toggle */}
         <label className="flex items-center gap-2 cursor-pointer">
