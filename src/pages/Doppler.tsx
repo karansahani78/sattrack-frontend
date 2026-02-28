@@ -10,98 +10,299 @@
  * Sending a multi-day window causes ~570 000 iterations → timeout / empty response.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useDoppler } from '../hooks';
 import type { DopplerRequest } from '../types';
 import { Activity, Radio, MapPin, Zap, ChevronRight, AlertCircle, Loader } from 'lucide-react';
 
 const MAX_CURVE_MINUTES = 20;
 
-// ─── SVG curve chart ──────────────────────────────────────────────────────────
+// ─── SVG curve chart with crosshair ──────────────────────────────────────────
 function DopplerCurveChart({ data }: {
-  data: Array<{ dopplerShiftHz?: number; computedAt?: string }>;
+  data: Array<{ dopplerShiftHz?: number; observedFrequencyMhz?: number; radialVelocityKms?: number; elevationDeg?: number; rangKm?: number; computedAt?: string }>;
 }) {
   if (!data.length) return null;
 
-  const W = 700, H = 180;
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hover, setHover] = useState<{ idx: number; svgX: number; svgY: number } | null>(null);
+
+  const W = 700, H = 200;
   const P = { top: 20, right: 24, bottom: 36, left: 68 };
+  const plotW = W - P.left - P.right;
+  const plotH = H - P.top  - P.bottom;
 
   const shifts = data.map(d => d.dopplerShiftHz ?? 0);
   const minHz  = Math.min(...shifts);
   const maxHz  = Math.max(...shifts);
   const range  = maxHz - minHz || 1;
 
-  const toX = (i: number) => P.left + (i / (data.length - 1)) * (W - P.left - P.right);
-  const toY = (v: number) => P.top + (1 - (v - minHz) / range) * (H - P.top - P.bottom);
+  const toX = (i: number) => P.left + (i / Math.max(data.length - 1, 1)) * plotW;
+  const toY = (v: number) => P.top  + (1 - (v - minHz) / range) * plotH;
 
   const pts   = data.map((d, i) => `${toX(i)},${toY(d.dopplerShiftHz ?? 0)}`).join(' ');
   const zeroY = toY(0);
   const lbls  = [0, Math.floor(data.length / 2), data.length - 1];
 
   const fmtHz = (v: number) =>
-    Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)} kHz` : `${v.toFixed(0)} Hz`;
+    Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(3)} kHz` : `${v.toFixed(1)} Hz`;
+  const fmtSign = (v: number) => (v >= 0 ? '+' : '') + fmtHz(v);
   const fmtT  = (s?: string) => {
     try { return s ? new Date(s).toISOString().slice(11, 19) : ''; } catch { return ''; }
   };
 
+  // Convert mouse event → SVG coordinate → nearest data index
+  const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    // scale mouse pos to SVG viewBox coords
+    const scaleX = W / rect.width;
+    const mousesvgX = (e.clientX - rect.left) * scaleX;
+    // map to data index
+    const rawIdx = (mousesvgX - P.left) / plotW * (data.length - 1);
+    const idx = Math.max(0, Math.min(data.length - 1, Math.round(rawIdx)));
+    const svgX = toX(idx);
+    const svgY = toY(data[idx].dopplerShiftHz ?? 0);
+    setHover({ idx, svgX, svgY });
+  }, [data, plotW]);
+
+  const handleMouseLeave = useCallback(() => setHover(null), []);
+
+  const hd = hover != null ? data[hover.idx] : null;
+  const shiftVal = hd?.dopplerShiftHz ?? 0;
+  const isApproach = shiftVal > 0;
+
+  // Tooltip flip: if crosshair is in right half, show tooltip to the left
+  const tipOnRight = hover ? hover.svgX < W * 0.55 : true;
+  const TIP_W = 195;
+  const tipX = tipOnRight
+    ? hover ? hover.svgX + 14 : 0
+    : hover ? hover.svgX - TIP_W - 14 : 0;
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: W, overflow: 'visible' }}>
-      <defs>
-        <linearGradient id="dg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#00c8ff" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#00c8ff" stopOpacity="0.01" />
-        </linearGradient>
-        <filter id="glow">
-          <feGaussianBlur stdDeviation="2.5" result="blur" />
-          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
-      </defs>
+    <div style={{ position: 'relative', cursor: 'crosshair' }}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: '100%', maxWidth: W, overflow: 'visible', display: 'block' }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+      >
+        <defs>
+          <linearGradient id="dg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#00c8ff" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#00c8ff" stopOpacity="0.01" />
+          </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="2.5" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="glowStrong">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          {/* clip to plot area */}
+          <clipPath id="plotClip">
+            <rect x={P.left} y={P.top} width={plotW} height={plotH} />
+          </clipPath>
+        </defs>
 
-      {[0, .25, .5, .75, 1].map(t => {
-        const y   = P.top + t * (H - P.top - P.bottom);
-        const val = maxHz - t * range;
-        return (
-          <g key={t}>
-            <line x1={P.left} y1={y} x2={W - P.right} y2={y}
-              stroke="rgba(0,200,255,.08)" strokeWidth={1} />
-            <text x={P.left - 8} y={y + 4} textAnchor="end"
-              fill="rgba(0,200,255,.4)" fontSize={9}
-              fontFamily="'Share Tech Mono',monospace">
-              {fmtHz(val)}
+        {/* Grid lines */}
+        {[0, .25, .5, .75, 1].map(t => {
+          const y   = P.top + t * plotH;
+          const val = maxHz - t * range;
+          return (
+            <g key={t}>
+              <line x1={P.left} y1={y} x2={W - P.right} y2={y}
+                stroke="rgba(0,200,255,.08)" strokeWidth={1} />
+              <text x={P.left - 8} y={y + 4} textAnchor="end"
+                fill="rgba(0,200,255,.4)" fontSize={9}
+                fontFamily="'Share Tech Mono',monospace">
+                {fmtHz(val)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Zero line */}
+        {zeroY >= P.top && zeroY <= H - P.bottom && (
+          <line x1={P.left} y1={zeroY} x2={W - P.right} y2={zeroY}
+            stroke="rgba(0,255,136,.25)" strokeWidth={1} strokeDasharray="4 4" />
+        )}
+
+        {/* Area fill */}
+        <polygon
+          points={`${P.left},${H - P.bottom} ${pts} ${W - P.right},${H - P.bottom}`}
+          fill="url(#dg)" clipPath="url(#plotClip)" />
+
+        {/* Curve line */}
+        <polyline points={pts} fill="none" stroke="#00c8ff"
+          strokeWidth={1.8} filter="url(#glow)" clipPath="url(#plotClip)" />
+
+        {/* Static dots if few points */}
+        {data.length <= 30 && data.map((d, i) => (
+          <circle key={i} cx={toX(i)} cy={toY(d.dopplerShiftHz ?? 0)}
+            r={3} fill="#00c8ff" opacity={0.8} />
+        ))}
+
+        {/* X-axis time labels */}
+        {lbls.map(idx => (
+          <text key={idx} x={toX(idx)} y={H - P.bottom + 18}
+            textAnchor="middle" fill="rgba(0,200,255,.4)" fontSize={9}
+            fontFamily="'Share Tech Mono',monospace">
+            {fmtT(data[idx]?.computedAt)}
+          </text>
+        ))}
+
+        {/* Axes */}
+        <line x1={P.left} y1={P.top} x2={P.left} y2={H - P.bottom}
+          stroke="rgba(0,200,255,.2)" strokeWidth={1} />
+        <line x1={P.left} y1={H - P.bottom} x2={W - P.right} y2={H - P.bottom}
+          stroke="rgba(0,200,255,.2)" strokeWidth={1} />
+
+        {/* ── CROSSHAIR OVERLAY ── */}
+        {hover && hd && (
+          <g>
+            {/* Vertical crosshair line */}
+            <line
+              x1={hover.svgX} y1={P.top}
+              x2={hover.svgX} y2={H - P.bottom}
+              stroke="rgba(0,200,255,.55)" strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+            {/* Horizontal crosshair line */}
+            <line
+              x1={P.left} y1={hover.svgY}
+              x2={W - P.right} y2={hover.svgY}
+              stroke="rgba(0,200,255,.25)" strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+
+            {/* Dot on curve — outer glow ring */}
+            <circle cx={hover.svgX} cy={hover.svgY} r={10}
+              fill="rgba(0,200,255,.06)" stroke="rgba(0,200,255,.18)" strokeWidth={1} />
+            {/* Dot on curve — inner */}
+            <circle cx={hover.svgX} cy={hover.svgY} r={5}
+              fill="#00c8ff" stroke="#fff" strokeWidth={1.5}
+              filter="url(#glowStrong)" />
+
+            {/* Y-axis value label */}
+            <rect
+              x={2} y={hover.svgY - 9}
+              width={P.left - 6} height={16}
+              fill="rgba(11,15,26,.92)" rx={1}
+            />
+            <text x={P.left - 8} y={hover.svgY + 4}
+              textAnchor="end"
+              fill="#00c8ff" fontSize={9}
+              fontFamily="'Share Tech Mono',monospace"
+              fontWeight="bold">
+              {fmtSign(shiftVal)}
             </text>
+
+            {/* X-axis time label */}
+            {hd.computedAt && (() => {
+              const tx = Math.max(P.left + 22, Math.min(W - P.right - 22, hover.svgX));
+              return (
+                <>
+                  <rect x={tx - 26} y={H - P.bottom + 4} width={52} height={14}
+                    fill="rgba(11,15,26,.92)" rx={1} />
+                  <text x={tx} y={H - P.bottom + 14}
+                    textAnchor="middle"
+                    fill="#00c8ff" fontSize={9}
+                    fontFamily="'Share Tech Mono',monospace"
+                    fontWeight="bold">
+                    {fmtT(hd.computedAt)}
+                  </text>
+                </>
+              );
+            })()}
+
+            {/* ── Floating tooltip panel ── */}
+            <g transform={`translate(${tipX}, ${Math.max(P.top, Math.min(H - P.bottom - 110, hover.svgY - 55))})`}>
+              {/* Panel bg */}
+              <rect x={0} y={0} width={TIP_W} height={112}
+                fill="rgba(3,7,18,.97)"
+                stroke="rgba(0,200,255,.3)"
+                strokeWidth={1}
+                rx={1}
+              />
+              {/* Top accent bar */}
+              <rect x={0} y={0} width={TIP_W} height={1.5}
+                fill={isApproach ? '#00ff88' : shiftVal < 0 ? '#ff4466' : '#00c8ff'} />
+              {/* Left accent bar */}
+              <rect x={0} y={0} width={2} height={112}
+                fill={isApproach ? 'rgba(0,255,136,.5)' : shiftVal < 0 ? 'rgba(255,68,102,.5)' : 'rgba(0,200,255,.5)'} />
+
+              {/* Header row */}
+              <text x={10} y={16} fill="rgba(0,200,255,.45)"
+                fontSize={8} fontFamily="'Share Tech Mono',monospace"
+                letterSpacing="2">
+                {hd.computedAt ? fmtT(hd.computedAt) + ' UTC' : `SAMPLE ${hover.idx + 1}/${data.length}`}
+              </text>
+
+              {/* Doppler Shift — main value */}
+              <text x={10} y={36}
+                fill={isApproach ? '#00ff88' : shiftVal < 0 ? '#ff4466' : '#00c8ff'}
+                fontSize={16} fontFamily="'Orbitron',monospace" fontWeight="700">
+                {fmtSign(shiftVal)}
+              </text>
+              <text x={TIP_W - 8} y={36} textAnchor="end"
+                fill={isApproach ? 'rgba(0,255,136,.55)' : shiftVal < 0 ? 'rgba(255,68,102,.55)' : 'rgba(0,200,255,.55)'}
+                fontSize={8} fontFamily="'Share Tech Mono',monospace">
+                {isApproach ? 'APPROACHING' : shiftVal < 0 ? 'RECEDING' : 'STATIONARY'}
+              </text>
+
+              {/* Divider */}
+              <line x1={10} y1={44} x2={TIP_W - 10} y2={44}
+                stroke="rgba(0,200,255,.1)" strokeWidth={1} />
+
+              {/* Secondary values */}
+              {[
+                hd.observedFrequencyMhz != null && {
+                  label: 'OBS FREQ',
+                  value: `${hd.observedFrequencyMhz.toFixed(4)} MHz`,
+                },
+                hd.radialVelocityKms != null && {
+                  label: 'RADIAL V',
+                  value: `${hd.radialVelocityKms.toFixed(3)} km/s`,
+                },
+                hd.elevationDeg != null && {
+                  label: 'ELEVATION',
+                  value: `${hd.elevationDeg.toFixed(2)}°`,
+                },
+                hd.rangKm != null && {
+                  label: 'RANGE',
+                  value: `${Math.round(hd.rangKm).toLocaleString()} km`,
+                },
+              ].filter(Boolean).slice(0, 3).map((row: any, ri) => (
+                <g key={ri}>
+                  <text x={10} y={57 + ri * 18}
+                    fill="rgba(0,200,255,.35)"
+                    fontSize={8} fontFamily="'Share Tech Mono',monospace"
+                    letterSpacing="1">
+                    {row.label}
+                  </text>
+                  <text x={TIP_W - 8} y={57 + ri * 18}
+                    textAnchor="end"
+                    fill="#cbd9e8"
+                    fontSize={9} fontFamily="'Share Tech Mono',monospace">
+                    {row.value}
+                  </text>
+                </g>
+              ))}
+
+              {/* Sample counter */}
+              <text x={10} y={106}
+                fill="rgba(0,200,255,.2)"
+                fontSize={8} fontFamily="'Share Tech Mono',monospace">
+                SAMPLE {hover.idx + 1} / {data.length}
+              </text>
+            </g>
           </g>
-        );
-      })}
-
-      {zeroY >= P.top && zeroY <= H - P.bottom && (
-        <line x1={P.left} y1={zeroY} x2={W - P.right} y2={zeroY}
-          stroke="rgba(0,255,136,.25)" strokeWidth={1} strokeDasharray="4 4" />
-      )}
-
-      <polygon
-        points={`${P.left},${H - P.bottom} ${pts} ${W - P.right},${H - P.bottom}`}
-        fill="url(#dg)" />
-      <polyline points={pts} fill="none" stroke="#00c8ff"
-        strokeWidth={1.8} filter="url(#glow)" />
-
-      {data.length <= 30 && data.map((d, i) => (
-        <circle key={i} cx={toX(i)} cy={toY(d.dopplerShiftHz ?? 0)}
-          r={3} fill="#00c8ff" opacity={0.8} />
-      ))}
-
-      {lbls.map(idx => (
-        <text key={idx} x={toX(idx)} y={H - P.bottom + 18}
-          textAnchor="middle" fill="rgba(0,200,255,.4)" fontSize={9}
-          fontFamily="'Share Tech Mono',monospace">
-          {fmtT(data[idx]?.computedAt)}
-        </text>
-      ))}
-
-      <line x1={P.left} y1={P.top} x2={P.left} y2={H - P.bottom}
-        stroke="rgba(0,200,255,.2)" strokeWidth={1} />
-      <line x1={P.left} y1={H - P.bottom} x2={W - P.right} y2={H - P.bottom}
-        stroke="rgba(0,200,255,.2)" strokeWidth={1} />
-    </svg>
+        )}
+      </svg>
+    </div>
   );
 }
 
@@ -290,6 +491,7 @@ export function Doppler() {
   const rangKm     = r?.rangKm               as number | undefined;
   const computedAt = r?.computedAt           as string | undefined;
 
+  // curve items may carry: dopplerShiftHz, observedFrequencyMhz, radialVelocityKms, elevationDeg, rangKm, computedAt
   const curveAny    = curve as any[];
   const curveShifts = curveAny.map(d => (d.dopplerShiftHz ?? 0) as number);
 
