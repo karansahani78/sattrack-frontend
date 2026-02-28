@@ -13,7 +13,7 @@
 import { useState, useCallback } from 'react';
 import { useDoppler } from '../hooks';
 import type { DopplerRequest } from '../types';
-import { Activity, Radio, MapPin, Zap, ChevronRight, AlertCircle } from 'lucide-react';
+import { Activity, Radio, MapPin, Zap, ChevronRight, AlertCircle, Loader } from 'lucide-react';
 
 const MAX_CURVE_MINUTES = 20;
 
@@ -184,9 +184,10 @@ export function Doppler() {
   const [passStart, setPassStart] = useState('');
   const [passEnd,   setPassEnd]   = useState('');
 
-  // ── NEW: locate button state so the user sees feedback ───────────────────
-  const [locating, setLocating] = useState(false);
-  const [locError, setLocError] = useState('');
+  // ── Locate state ──────────────────────────────────────────────────────────
+  const [locating,  setLocating]  = useState(false);
+  const [locError,  setLocError]  = useState('');
+  const [locLabel,  setLocLabel]  = useState('');
 
   // ── Build request ─────────────────────────────────────────────────────────
   const buildReq = useCallback((): DopplerRequest | null => {
@@ -205,31 +206,56 @@ export function Doppler() {
   const req = buildReq();
   const { result, curve, loading, error, fetchCurrent, fetchCurve } = useDoppler(req);
 
-  // ── FIX: added error callback + loading state so button actually works ────
+  // ── Locate handler (mirrors WorldMap GPS approach) ────────────────────────
   const locateAndFill = () => {
     if (!navigator.geolocation) {
-      setLocError('Geolocation not supported by this browser');
+      setLocError('Geolocation is not supported by this browser.');
       return;
     }
     setLocating(true);
     setLocError('');
+    setLocLabel('');
+
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLat(pos.coords.latitude.toFixed(5));
-        setLon(pos.coords.longitude.toFixed(5));
-        setAlt(((pos.coords.altitude ?? 0) / 1000).toFixed(3));
+      pos => {
+        const { latitude, longitude, altitude, accuracy } = pos.coords;
+        setLat(latitude.toFixed(5));
+        setLon(longitude.toFixed(5));
+        // altitude from browser is in metres; field stores km
+        setAlt(((altitude ?? 0) / 1000).toFixed(3));
         setLocating(false);
+
+        // Reverse-geocode for a friendly label (same approach as WorldMap)
+        fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&zoom=10&addressdetails=1`,
+          { headers: { 'Accept-Language': 'en' } }
+        )
+          .then(r => r.json())
+          .then(data => {
+            const a = data?.address;
+            if (a) {
+              const parts = [
+                a.suburb || a.neighbourhood || a.city_district,
+                a.city || a.town || a.village || a.county,
+                a.country,
+              ].filter(Boolean);
+              setLocLabel(parts.slice(0, 2).join(', ') || `${latitude.toFixed(4)}°, ${longitude.toFixed(4)}°`);
+            } else {
+              setLocLabel(`${latitude.toFixed(5)}°, ${longitude.toFixed(5)}°`);
+            }
+          })
+          .catch(() => setLocLabel(`${latitude.toFixed(5)}°, ${longitude.toFixed(5)}°`));
       },
-      (err) => {
+      err => {
         const msgs: Record<number, string> = {
-          1: 'Location permission denied',
-          2: 'Position unavailable',
-          3: 'Location request timed out',
+          1: 'Permission denied — allow location access in browser settings.',
+          2: 'Position unavailable. Try again or enter coordinates manually.',
+          3: 'Request timed out. Try again.',
         };
-        setLocError(msgs[err.code] || 'Location error');
+        setLocError(msgs[err.code] || 'Location error. Enter coordinates manually.');
         setLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
     );
   };
 
@@ -315,34 +341,44 @@ export function Doppler() {
             type="number" step="0.00001" placeholder="e.g. -74.0060" unit="°" />
           <Field label="ALTITUDE" value={alt} onChange={setAlt}
             type="number" step="0.001" min="0" unit="km" />
-
-          {/* ── LOCATE button with loading + error feedback ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <button
-              onClick={locateAndFill}
-              disabled={locating}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
-                background: locating ? 'rgba(0,200,255,.04)' : 'rgba(0,200,255,.08)',
-                border: `1px solid ${locating ? 'rgba(0,200,255,.15)' : 'rgba(0,200,255,.25)'}`,
-                color: locating ? 'rgba(0,200,255,.4)' : '#00c8ff',
-                fontFamily: "'Share Tech Mono',monospace",
-                fontSize: 10, letterSpacing: 2,
-                cursor: locating ? 'not-allowed' : 'pointer',
-                whiteSpace: 'nowrap', transition: 'all .2s',
-              }}>
-              <MapPin style={{ width: 11, height: 11,
-                animation: locating ? '__spin 1s linear infinite' : 'none' }} />
-              {locating ? 'LOCATING…' : 'LOCATE'}
-            </button>
-            {locError && (
-              <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 8,
-                color: '#ff4466', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>
-                ⚠ {locError}
-              </span>
-            )}
-          </div>
+          <button onClick={locateAndFill} disabled={locating}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
+              background: locating ? 'rgba(0,200,255,.04)' : 'rgba(0,200,255,.08)',
+              border: `1px solid ${locating ? 'rgba(0,200,255,.15)' : 'rgba(0,200,255,.25)'}`,
+              color: locating ? 'rgba(0,200,255,.4)' : '#00c8ff',
+              fontFamily: "'Share Tech Mono',monospace",
+              fontSize: 10, letterSpacing: 2,
+              cursor: locating ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap', transition: 'all .2s' }}>
+            {locating
+              ? <><Loader style={{ width: 11, height: 11, animation: '__spin 1s linear infinite' }} /> LOCATING...</>
+              : <><MapPin style={{ width: 11, height: 11 }} /> LOCATE</>
+            }
+          </button>
         </div>
+
+        {/* ── Location feedback ── */}
+        {locError && (
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'flex-start', gap: 8,
+            padding: '8px 12px', background: 'rgba(255,68,102,.06)',
+            border: '1px solid rgba(255,68,102,.25)',
+            fontFamily: "'Share Tech Mono',monospace", fontSize: 10,
+            color: '#ff4466', letterSpacing: 1 }}>
+            <AlertCircle style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />
+            {locError}
+          </div>
+        )}
+        {!locError && locLabel && (
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8,
+            padding: '7px 12px', background: 'rgba(0,255,136,.04)',
+            border: '1px solid rgba(0,255,136,.18)',
+            fontFamily: "'Share Tech Mono',monospace", fontSize: 10,
+            color: '#00ff88', letterSpacing: 1 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#00ff88',
+              display: 'inline-block', flexShrink: 0 }} />
+            LOCATED · {locLabel}
+          </div>
+        )}
 
         <div style={{ marginTop: 20 }}>
           <button onClick={fetchCurrent} disabled={!canSubmit}
@@ -425,6 +461,7 @@ export function Doppler() {
           <Activity style={{ width: 11, height: 11 }} /> DOPPLER CURVE — PASS WINDOW
         </div>
 
+        {/* ── MAX WINDOW HINT ── */}
         <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 9, letterSpacing: 1,
           color: 'rgba(0,200,255,.28)', marginBottom: 18 }}>
           MAX {MAX_CURVE_MINUTES} MIN WINDOW · backend samples every 5 s · typical pass = 5–12 min
@@ -453,6 +490,7 @@ export function Doppler() {
               if (!windowOk) return;
               const startIso = passStart + ':00Z';
               const endIso   = passEnd + ':00Z';
+              
               fetchCurve(startIso, endIso);
             }}
             disabled={!canCurve}
@@ -466,6 +504,7 @@ export function Doppler() {
           </button>
         </div>
 
+        {/* ── Window duration indicator ── */}
         {passStart && passEnd && (
           <div style={{ marginBottom: 16 }}>
             {windowNegative && (
@@ -500,6 +539,7 @@ export function Doppler() {
           </div>
         )}
 
+        {/* ── Chart or placeholder ── */}
         {curve.length > 0 ? (
           <div>
             <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 9, letterSpacing: 2,
