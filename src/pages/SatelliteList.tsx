@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Filter, Star, StarOff, ChevronRight, Satellite } from 'lucide-react';
+import { Search, Star, StarOff, ChevronRight, LayoutGrid } from 'lucide-react';
 import { useSatelliteList } from '../hooks';
 import { useStore } from '../stores/useStore';
 import type { SatelliteSummary } from '../types';
@@ -15,16 +15,16 @@ export function SatelliteList() {
 
   const CATEGORY_COLORS: Record<string, string> = {
     'ISS & Stations': 'bg-purple-500/20 text-purple-400',
-    'Starlink': 'bg-blue-500/20 text-blue-400',
-    'GPS': 'bg-yellow-500/20 text-yellow-400',
-    'Weather': 'bg-cyan-500/20 text-cyan-400',
-    'Science': 'bg-green-500/20 text-green-400',
-    'Amateur': 'bg-orange-500/20 text-orange-400',
+    'Starlink':        'bg-blue-500/20 text-blue-400',
+    'GPS':             'bg-yellow-500/20 text-yellow-400',
+    'Weather':         'bg-cyan-500/20 text-cyan-400',
+    'Science':         'bg-green-500/20 text-green-400',
+    'Amateur':         'bg-orange-500/20 text-orange-400',
   };
 
   const categories = [
     'ISS & Stations', 'Starlink', 'GPS', 'GLONASS', 'Galileo',
-    'Weather', 'Science', 'Amateur', 'Military'
+    'Weather', 'Science', 'Amateur', 'Military',
   ];
 
   return (
@@ -127,7 +127,7 @@ export function SatelliteList() {
 }
 
 function SatelliteCard({
-  satellite, isFav, onToggleFav, categoryColor
+  satellite, isFav, onToggleFav, categoryColor,
 }: {
   satellite: SatelliteSummary;
   isFav: boolean;

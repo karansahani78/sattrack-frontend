@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { SatelliteDetail } from './pages/SatelliteDetail';
@@ -18,38 +18,35 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return token ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
+/**
+ * SmartSatellites:
+ * - /satellites?list=true  → always show the full list
+ * - /satellites             → redirect to last tracked satellite if one exists
+ * - /satellites             → show list if nothing tracked yet
+ */
+function SmartSatellites() {
+  const [searchParams] = useSearchParams();
+  const selectedNoradId = useStore((s) => s.selectedNoradId);
+
+  if (searchParams.get('list') === 'true') return <SatelliteList />;
+  if (selectedNoradId) return <Navigate to={`/satellites/${selectedNoradId}`} replace />;
+  return <SatelliteList />;
+}
+
 export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
-        <Route path="/satellites" element={<SatelliteList />} />
+        <Route path="/satellites" element={<SmartSatellites />} />
         <Route path="/satellites/:noradId" element={<SatelliteDetail />} />
-
-        {/* V2 Tracking Routes */}
-        <Route path="/passes" element={<Passes />} />
+        <Route path="/passes"       element={<Passes />} />
         <Route path="/conjunctions" element={<Conjunctions />} />
-        <Route path="/doppler" element={<Doppler />} />
-
-        <Route
-          path="/notifications"
-          element={
-            <PrivateRoute>
-              <Notifications />
-            </PrivateRoute>
-          }
-        />
-
-        <Route path="/login" element={<Login />} />
+        <Route path="/doppler"      element={<Doppler />} />
+        <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
+        <Route path="/login"    element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route
-          path="/profile"
-          element={
-            <PrivateRoute>
-              <Profile />
-            </PrivateRoute>
-          }
-        />
+        <Route path="/profile"  element={<PrivateRoute><Profile /></PrivateRoute>} />
       </Route>
     </Routes>
   );

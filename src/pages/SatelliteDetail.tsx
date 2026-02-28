@@ -197,7 +197,7 @@ export function SatelliteDetail() {
 
       {/* Back link */}
       <Link
-        to="/satellites"
+        to="/satellites?list=true"
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           marginBottom: 16, color: C.muted, fontSize: 13,
