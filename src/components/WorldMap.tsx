@@ -20,8 +20,8 @@ interface WorldMapProps {
 
 type ViewMode = 'normal' | 'satellite' | 'terrain';
 
-/* ─── color palette ─────────────────────────────────────────── */
-const COLORS = ['#00d4ff','#ff6b35','#39ff14','#ffd700','#ff69b4','#c084fc','#34d399','#fb923c','#60a5fa','#f472b6'];
+/* ─── color palette — uniform steel-blue/cyan tones ─────────── */
+const COLORS = ['#00C2FF','#0094C6','#4DA8CC','#6EC6E6','#2A7FAA','#1A6A99','#3AACCC','#5BBAD5','#0080AA','#80D4F0'];
 const colorMap: Record<string, string> = {};
 let colorCursor = 0;
 function getSatColor(id: string) {
@@ -56,55 +56,54 @@ function makeSatIcon(color: string, selected: boolean, name: string): L.DivIcon 
   const cx = W / 2, cy = H / 2;
 
   const rings = selected ? `
-    <circle cx="${cx}" cy="${cy}" r="${cx-2}" fill="none" stroke="${color}" stroke-width="1" opacity="0.6">
-      <animate attributeName="r" from="${cx-10}" to="${cx-1}" dur="1.8s" repeatCount="indefinite"/>
-      <animate attributeName="opacity" from="0.5" to="0" dur="1.8s" repeatCount="indefinite"/>
+    <circle cx="${cx}" cy="${cy}" r="${cx-2}" fill="none" stroke="${color}" stroke-width="0.8" opacity="0.4">
+      <animate attributeName="r" from="${cx-10}" to="${cx-1}" dur="2.2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" from="0.35" to="0" dur="2.2s" repeatCount="indefinite"/>
     </circle>
-    <circle cx="${cx}" cy="${cy}" r="${cx-4}" fill="none" stroke="${color}" stroke-width="0.7" opacity="0.4">
-      <animate attributeName="r" from="${cx-10}" to="${cx-1}" dur="1.8s" begin="0.5s" repeatCount="indefinite"/>
-      <animate attributeName="opacity" from="0.4" to="0" dur="1.8s" begin="0.5s" repeatCount="indefinite"/>
+    <circle cx="${cx}" cy="${cy}" r="${cx-4}" fill="none" stroke="${color}" stroke-width="0.6" opacity="0.25">
+      <animate attributeName="r" from="${cx-10}" to="${cx-1}" dur="2.2s" begin="0.6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" from="0.25" to="0" dur="2.2s" begin="0.6s" repeatCount="indefinite"/>
     </circle>` : '';
 
   const cross = selected ? `
-    <line x1="${cx}" y1="2" x2="${cx}" y2="${cy-S/2-2}" stroke="${color}" stroke-width="0.8" opacity="0.7"/>
-    <line x1="${cx}" y1="${cy+S/2+2}" x2="${cx}" y2="${H-2}" stroke="${color}" stroke-width="0.8" opacity="0.7"/>
-    <line x1="2" y1="${cy}" x2="${cx-S/2-2}" y2="${cy}" stroke="${color}" stroke-width="0.8" opacity="0.7"/>
-    <line x1="${cx+S/2+2}" y1="${cy}" x2="${W-2}" y2="${cy}" stroke="${color}" stroke-width="0.8" opacity="0.7"/>` : '';
+    <line x1="${cx}" y1="2" x2="${cx}" y2="${cy-S/2-2}" stroke="${color}" stroke-width="0.7" opacity="0.5"/>
+    <line x1="${cx}" y1="${cy+S/2+2}" x2="${cx}" y2="${H-2}" stroke="${color}" stroke-width="0.7" opacity="0.5"/>
+    <line x1="2" y1="${cy}" x2="${cx-S/2-2}" y2="${cy}" stroke="${color}" stroke-width="0.7" opacity="0.5"/>
+    <line x1="${cx+S/2+2}" y1="${cy}" x2="${W-2}" y2="${cy}" stroke="${color}" stroke-width="0.7" opacity="0.5"/>` : '';
 
   const label = selected ? `
     <div style="position:absolute;top:${H+5}px;left:50%;transform:translateX(-50%);
       white-space:nowrap;pointer-events:none;
       font-family:'Orbitron',monospace;font-size:9px;font-weight:600;
       letter-spacing:1.5px;color:${color};
-      text-shadow:0 0 10px ${color},0 0 20px ${color}66;
-      background:rgba(3,7,18,.9);padding:2px 7px;
-      border:1px solid ${color}44;">${name}</div>` : '';
+      background:rgba(11,15,26,.95);padding:2px 7px;
+      border:1px solid ${color}33;">${name}</div>` : '';
 
   return L.divIcon({
     html: `<div style="position:relative;width:${W}px;height:${H}px;">
       <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" overflow="visible">
         <defs>
           <filter id="glow${color.slice(1)}${W}">
-            <feGaussianBlur stdDeviation="${selected ? 3.5 : 1.8}" result="blur"/>
+            <feGaussianBlur stdDeviation="${selected ? 2.5 : 1.2}" result="blur"/>
             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
           <radialGradient id="dot${color.slice(1)}${W}">
-            <stop offset="0%" stop-color="#fff" stop-opacity="0.9"/>
+            <stop offset="0%" stop-color="#fff" stop-opacity="0.8"/>
             <stop offset="40%" stop-color="${color}" stop-opacity="1"/>
-            <stop offset="100%" stop-color="${color}" stop-opacity="0.7"/>
+            <stop offset="100%" stop-color="${color}" stop-opacity="0.75"/>
           </radialGradient>
         </defs>
         ${rings}${cross}
         <circle cx="${cx}" cy="${cy}" r="${S/2+(selected?5:3)}"
-          fill="${color}" opacity="${selected?0.25:0.18}"
+          fill="${color}" opacity="${selected?0.15:0.12}"
           filter="url(#glow${color.slice(1)}${W})"/>
         <circle cx="${cx}" cy="${cy}" r="${S/2}"
           fill="url(#dot${color.slice(1)}${W})"
-          stroke="rgba(255,255,255,${selected?0.95:0.75})"
-          stroke-width="${selected?2:1.3}"
+          stroke="rgba(255,255,255,${selected?0.85:0.6})"
+          stroke-width="${selected?1.8:1.2}"
           filter="url(#glow${color.slice(1)}${W})"/>
-        ${!selected ? `<circle cx="${cx}" cy="${cy}" r="2.5" fill="#fff" opacity="0.6">
-          <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2.5s" repeatCount="indefinite"/>
+        ${!selected ? `<circle cx="${cx}" cy="${cy}" r="2.5" fill="#fff" opacity="0.5">
+          <animate attributeName="opacity" values="0.5;0.15;0.5" dur="3s" repeatCount="indefinite"/>
         </circle>` : ''}
       </svg>${label}</div>`,
     className: '__sat_icon_host',
@@ -119,31 +118,44 @@ function makeObserverIcon(): L.DivIcon {
     html: `<div style="position:relative;width:36px;height:36px;">
       <svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <radialGradient id="obsG"><stop offset="0%" stop-color="#00ff88" stop-opacity="0.35"/>
-          <stop offset="100%" stop-color="#00ff88" stop-opacity="0"/></radialGradient>
+          <radialGradient id="obsG"><stop offset="0%" stop-color="#2E8B57" stop-opacity="0.22"/>
+          <stop offset="100%" stop-color="#2E8B57" stop-opacity="0"/></radialGradient>
         </defs>
         <circle cx="18" cy="18" r="17" fill="url(#obsG)"/>
-        <circle cx="18" cy="18" r="16" fill="none" stroke="#00ff88" stroke-width="1" opacity="0.6"/>
-        <circle cx="18" cy="18" r="10" fill="none" stroke="#00ff88" stroke-width="0.6" opacity="0.35"/>
-        <circle cx="18" cy="18" r="5"  fill="none" stroke="#00ff88" stroke-width="0.6" opacity="0.45"/>
-        <line x1="18" y1="2"  x2="18" y2="6"  stroke="#00ff88" stroke-width="1.2" opacity="0.8"/>
-        <line x1="18" y1="30" x2="18" y2="34" stroke="#00ff88" stroke-width="1.2" opacity="0.8"/>
-        <line x1="2"  y1="18" x2="6"  y2="18" stroke="#00ff88" stroke-width="1.2" opacity="0.8"/>
-        <line x1="30" y1="18" x2="34" y2="18" stroke="#00ff88" stroke-width="1.2" opacity="0.8"/>
-        <line x1="18" y1="18" x2="18" y2="3" stroke="#00ff88" stroke-width="1.8" opacity="0.95" stroke-linecap="round">
-          <animateTransform attributeName="transform" type="rotate" from="0 18 18" to="360 18 18" dur="3.5s" repeatCount="indefinite"/>
+        <circle cx="18" cy="18" r="16" fill="none" stroke="#2E8B57" stroke-width="1" opacity="0.45"/>
+        <circle cx="18" cy="18" r="10" fill="none" stroke="#2E8B57" stroke-width="0.5" opacity="0.28"/>
+        <circle cx="18" cy="18" r="5"  fill="none" stroke="#2E8B57" stroke-width="0.5" opacity="0.35"/>
+        <line x1="18" y1="2"  x2="18" y2="6"  stroke="#2E8B57" stroke-width="1" opacity="0.6"/>
+        <line x1="18" y1="30" x2="18" y2="34" stroke="#2E8B57" stroke-width="1" opacity="0.6"/>
+        <line x1="2"  y1="18" x2="6"  y2="18" stroke="#2E8B57" stroke-width="1" opacity="0.6"/>
+        <line x1="30" y1="18" x2="34" y2="18" stroke="#2E8B57" stroke-width="1" opacity="0.6"/>
+        <line x1="18" y1="18" x2="18" y2="3" stroke="#2E8B57" stroke-width="1.5" opacity="0.8" stroke-linecap="round">
+          <animateTransform attributeName="transform" type="rotate" from="0 18 18" to="360 18 18" dur="4s" repeatCount="indefinite"/>
         </line>
-        <circle cx="18" cy="18" r="4" fill="#00ff88" stroke="#fff" stroke-width="1.5"
-          style="filter:drop-shadow(0 0 8px #00ff88)"/>
-        <circle cx="18" cy="18" r="4" fill="#00ff88" opacity="0.5">
-          <animate attributeName="r" values="4;7;4" dur="2s" repeatCount="indefinite"/>
-          <animate attributeName="opacity" values="0.5;0;0.5" dur="2s" repeatCount="indefinite"/>
+        <circle cx="18" cy="18" r="4" fill="#2E8B57" stroke="#fff" stroke-width="1.5"
+          style="filter:drop-shadow(0 0 5px #2E8B57)"/>
+        <circle cx="18" cy="18" r="4" fill="#2E8B57" opacity="0.35">
+          <animate attributeName="r" values="4;7;4" dur="2.5s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.35;0;0.35" dur="2.5s" repeatCount="indefinite"/>
         </circle>
       </svg></div>`,
     className: '',
     iconSize:   [36, 36],
     iconAnchor: [18, 18],
   });
+}
+
+/* ─── timestamp extractor (safe — handles any field name) ────── */
+function extractTime(pt: TrackPoint): string {
+  const raw =
+    (pt as any).time       ??
+    (pt as any).timestamp  ??
+    (pt as any).computedAt ??
+    (pt as any).date       ??
+    undefined;
+  if (!raw) return '';
+  try { return new Date(raw).toISOString().replace('T', ' ').slice(0, 19) + ' UTC'; }
+  catch { return ''; }
 }
 
 /* ─── inject CSS ────────────────────────────────────────────── */
@@ -156,52 +168,76 @@ function injectMapStyles() {
     @import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
 
     .__sat_icon_host { background:none!important;border:none!important; }
-    .leaflet-container { background:#020a18!important;font-family:'Share Tech Mono',monospace!important; }
-    .leaflet-tile-pane,.leaflet-tile { background:#020a18; }
+    .leaflet-container { background:#0B0F1A!important;font-family:'Share Tech Mono',monospace!important; }
+    .leaflet-tile-pane,.leaflet-tile { background:#0B0F1A; }
 
     .leaflet-control-zoom {
-      border:1px solid rgba(0,200,255,.2)!important;
-      box-shadow:0 0 20px rgba(0,0,0,.8)!important;border-radius:2px!important;
+      border:1px solid rgba(0,194,255,.18)!important;
+      box-shadow:none!important;border-radius:2px!important;
     }
     .leaflet-control-zoom a {
-      background:rgba(3,7,24,.95)!important;color:#00c8ff!important;
-      border:none!important;border-bottom:1px solid rgba(0,200,255,.1)!important;
+      background:rgba(11,15,26,.97)!important;color:#00C2FF!important;
+      border:none!important;border-bottom:1px solid rgba(0,194,255,.1)!important;
       font-family:'Orbitron',monospace!important;font-weight:700!important;font-size:16px!important;
       width:32px!important;height:32px!important;line-height:32px!important;
       display:flex!important;align-items:center!important;justify-content:center!important;
-      transition:all .2s!important;border-radius:0!important;
+      transition:background .2s!important;border-radius:0!important;
     }
     .leaflet-control-zoom a:hover {
-      background:rgba(0,200,255,.16)!important;color:#fff!important;
-      box-shadow:inset 0 0 14px rgba(0,200,255,.25)!important;
+      background:rgba(0,194,255,.1)!important;color:#fff!important;
     }
     .leaflet-bar { border:none!important;border-radius:2px!important;overflow:hidden; }
     .leaflet-control-attribution {
-      background:rgba(3,7,24,.85)!important;color:rgba(0,200,255,.3)!important;
+      background:rgba(11,15,26,.88)!important;color:rgba(0,194,255,.22)!important;
       font-family:'Share Tech Mono',monospace!important;font-size:9px!important;
       letter-spacing:.5px;padding:3px 8px!important;
     }
-    .leaflet-control-attribution a { color:rgba(0,200,255,.5)!important; }
+    .leaflet-control-attribution a { color:rgba(0,194,255,.4)!important; }
     .leaflet-tooltip {
-      background:rgba(3,8,28,.97)!important;border:1px solid rgba(0,200,255,.3)!important;
-      border-radius:1px!important;color:#00d4ff!important;
+      background:rgba(11,15,26,.98)!important;border:1px solid rgba(0,194,255,.22)!important;
+      border-radius:1px!important;color:#00C2FF!important;
       font-family:'Share Tech Mono',monospace!important;font-size:11px!important;
-      letter-spacing:1.5px!important;box-shadow:0 0 20px rgba(0,200,255,.2)!important;
-      padding:6px 12px!important;backdrop-filter:blur(14px)!important;white-space:nowrap;
+      letter-spacing:1.5px!important;box-shadow:none!important;
+      padding:6px 12px!important;white-space:nowrap;
     }
     .leaflet-tooltip::before { display:none!important; }
     .leaflet-tooltip-top { margin-top:-10px!important; }
     .leaflet-popup-content-wrapper {
-      background:rgba(3,8,28,.97)!important;border:1px solid rgba(0,200,255,.2)!important;
-      border-radius:2px!important;color:#e2f0ff!important;font-family:'Share Tech Mono',monospace!important;
+      background:rgba(11,15,26,.98)!important;border:1px solid rgba(0,194,255,.18)!important;
+      border-radius:2px!important;color:#CBD9E8!important;font-family:'Share Tech Mono',monospace!important;
     }
-    .leaflet-popup-tip { background:rgba(3,8,28,.97)!important; }
-    .leaflet-popup-close-button { color:#00c8ff!important; }
+    .leaflet-popup-tip { background:rgba(11,15,26,.98)!important; }
+    .leaflet-popup-close-button { color:#00C2FF!important; }
 
-    @keyframes __blink   { 0%,100%{opacity:1} 50%{opacity:.15} }
+    /* ── track-line tooltip styles ──────────────────────────── */
+    .trk-tip-past {
+      background:rgba(11,15,26,.97)!important;
+      border:1px solid rgba(0,194,255,.18)!important;
+      border-left:2px solid rgba(0,194,255,.75)!important;
+      border-radius:1px!important;padding:8px 14px!important;
+      box-shadow:none!important;min-width:200px;
+    }
+    .trk-tip-past::before { display:none!important; }
+    .trk-tip-future {
+      background:rgba(11,15,26,.97)!important;
+      border:1px solid rgba(0,194,255,.1)!important;
+      border-left:2px solid rgba(0,194,255,.35)!important;
+      border-radius:1px!important;padding:8px 14px!important;
+      box-shadow:none!important;min-width:200px;
+    }
+    .trk-tip-future::before { display:none!important; }
+    .trk-tip-node {
+      background:rgba(11,15,26,.97)!important;
+      border:1px solid rgba(0,194,255,.2)!important;
+      border-radius:1px!important;padding:6px 12px!important;
+      box-shadow:none!important;
+    }
+    .trk-tip-node::before { display:none!important; }
+
+    @keyframes __blink   { 0%,100%{opacity:1} 50%{opacity:.25} }
     @keyframes __fadeIn  { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
     @keyframes __pulse   { 0%,100%{transform:scale(1)} 50%{transform:scale(1.2)} }
-    @keyframes __locPing { 0%{transform:scale(1);opacity:0.7} 100%{transform:scale(3);opacity:0} }
+    @keyframes __locPing { 0%{transform:scale(1);opacity:0.6} 100%{transform:scale(3);opacity:0} }
   `;
   document.head.appendChild(s);
 }
@@ -213,8 +249,6 @@ export function WorldMap({ positions, trackPoints, selectedNoradId, onSatelliteC
   const mapRef             = useRef<LeafletMap | null>(null);
   const containerRef       = useRef<HTMLDivElement>(null);
   const markersRef         = useRef<Record<string, Marker>>({});
-  // FIX: widened type to include Marker — arrowhead direction markers pushed
-  // into this ref are L.Marker, not Polyline/CircleMarker (fixes TS2345).
   const trackRef           = useRef<(Polyline | L.CircleMarker | Marker)[]>([]);
   const observerMarkerRef  = useRef<Marker | null>(null);
   const horizonRef         = useRef<Circle | null>(null);
@@ -258,13 +292,13 @@ export function WorldMap({ positions, trackPoints, selectedNoradId, onSatelliteC
     map.on('zoom', () => setZoomLevel(map.getZoom()));
 
     /* graticule */
-    const gr = { color: 'rgba(0,180,255,.07)', weight: 0.5, interactive: false as const };
+    const gr = { color: 'rgba(0,194,255,.05)', weight: 0.5, interactive: false as const };
     for (let lt = -60; lt <= 60; lt += 30) L.polyline([[lt,-180],[lt,180]], gr).addTo(map);
     for (let ln = -150; ln <= 150; ln += 30) L.polyline([[-90,ln],[90,ln]], gr).addTo(map);
-    L.polyline([[0,-180],[0,180]], { color:'rgba(0,212,255,.22)', weight:1, dashArray:'6 12', interactive:false }).addTo(map);
-    L.polyline([[-90,0],[90,0]], { color:'rgba(0,212,255,.15)', weight:1, dashArray:'6 12', interactive:false }).addTo(map);
-    [23.5,-23.5].forEach(lt => L.polyline([[lt,-180],[lt,180]], { color:'rgba(255,120,50,.1)', weight:0.6, dashArray:'3 8', interactive:false }).addTo(map));
-    [66.5,-66.5].forEach(lt => L.polyline([[lt,-180],[lt,180]], { color:'rgba(100,180,255,.08)', weight:0.5, dashArray:'2 6', interactive:false }).addTo(map));
+    L.polyline([[0,-180],[0,180]], { color:'rgba(0,194,255,.18)', weight:1, dashArray:'6 12', interactive:false }).addTo(map);
+    L.polyline([[-90,0],[90,0]], { color:'rgba(0,194,255,.12)', weight:1, dashArray:'6 12', interactive:false }).addTo(map);
+    [23.5,-23.5].forEach(lt => L.polyline([[lt,-180],[lt,180]], { color:'rgba(184,115,51,.08)', weight:0.6, dashArray:'3 8', interactive:false }).addTo(map));
+    [66.5,-66.5].forEach(lt => L.polyline([[lt,-180],[lt,180]], { color:'rgba(0,150,200,.06)', weight:0.5, dashArray:'2 6', interactive:false }).addTo(map));
 
     mapRef.current = map;
     return () => {
@@ -349,8 +383,8 @@ export function WorldMap({ positions, trackPoints, selectedNoradId, onSatelliteC
         .setLatLng([userPos.lat, userPos.lon])
         .setTooltipContent(
           `<div style="font-family:'Orbitron',monospace;font-size:10px;color:#4285f4;letter-spacing:2px;margin-bottom:3px;">YOUR LOCATION</div>
-           <div style="font-size:9px;color:rgba(140,200,255,.85);letter-spacing:1px;">${userLocLabel}</div>
-           <div style="font-size:8px;color:rgba(100,150,200,.5);margin-top:2px;">±${Math.round(userPos.acc)}m accuracy</div>`
+           <div style="font-size:9px;color:rgba(140,180,210,.8);letter-spacing:1px;">${userLocLabel}</div>
+           <div style="font-size:8px;color:rgba(100,140,180,.45);margin-top:2px;">±${Math.round(userPos.acc)}m accuracy</div>`
         );
       userAccRef.current?.setLatLng([userPos.lat, userPos.lon]);
       return;
@@ -358,7 +392,7 @@ export function WorldMap({ positions, trackPoints, selectedNoradId, onSatelliteC
 
     userAccRef.current = L.marker([userPos.lat, userPos.lon], {
       icon: L.divIcon({
-        html: `<div style="width:50px;height:50px;border-radius:50%;background:rgba(66,133,244,0.12);border:1.5px solid rgba(66,133,244,0.35);box-shadow:0 0 16px rgba(66,133,244,0.2);"></div>`,
+        html: `<div style="width:50px;height:50px;border-radius:50%;background:rgba(66,133,244,0.08);border:1px solid rgba(66,133,244,0.25);"></div>`,
         className: '',
         iconSize: [50, 50],
         iconAnchor: [25, 25],
@@ -370,9 +404,9 @@ export function WorldMap({ positions, trackPoints, selectedNoradId, onSatelliteC
     userDotRef.current = L.marker([userPos.lat, userPos.lon], {
       icon: L.divIcon({
         html: `<div style="position:relative;width:22px;height:22px;">
-          <div style="position:absolute;inset:-5px;border-radius:50%;background:rgba(66,133,244,0.22);animation:__locPing 2.2s ease-out infinite;"></div>
-          <div style="position:absolute;inset:0;border-radius:50%;background:#4285f4;border:2.5px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,0.55),0 0 0 2px rgba(66,133,244,0.25);"></div>
-          <div style="position:absolute;top:3px;left:4px;width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.65);"></div>
+          <div style="position:absolute;inset:-5px;border-radius:50%;background:rgba(66,133,244,0.18);animation:__locPing 2.5s ease-out infinite;"></div>
+          <div style="position:absolute;inset:0;border-radius:50%;background:#4285f4;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.5);"></div>
+          <div style="position:absolute;top:3px;left:4px;width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.55);"></div>
         </div>`,
         className: '',
         iconSize:   [22, 22],
@@ -382,8 +416,8 @@ export function WorldMap({ positions, trackPoints, selectedNoradId, onSatelliteC
     })
       .bindTooltip(
         `<div style="font-family:'Orbitron',monospace;font-size:10px;color:#4285f4;letter-spacing:2px;margin-bottom:3px;">YOUR LOCATION</div>
-         <div style="font-size:9px;color:rgba(140,200,255,.85);letter-spacing:1px;">${userLocLabel}</div>
-         <div style="font-size:8px;color:rgba(100,150,200,.5);margin-top:2px;">±${Math.round(userPos.acc)}m accuracy</div>`,
+         <div style="font-size:9px;color:rgba(140,180,210,.8);letter-spacing:1px;">${userLocLabel}</div>
+         <div style="font-size:8px;color:rgba(100,140,180,.45);margin-top:2px;">±${Math.round(userPos.acc)}m accuracy</div>`,
         { direction: 'top', offset: [0, -14] }
       )
       .addTo(map);
@@ -403,7 +437,7 @@ export function WorldMap({ positions, trackPoints, selectedNoradId, onSatelliteC
       const vel   = pos.speedKmPerS ? `${pos.speedKmPerS.toFixed(2)} km/s` : '';
       const tip =
         `<div style="font-family:'Orbitron',monospace;font-size:10px;color:${color};letter-spacing:2px;margin-bottom:4px;">${name}</div>` +
-        (alt ? `<div style="font-size:9px;color:rgba(140,180,210,.7);letter-spacing:1px;">ALT ${alt}${vel?' · '+vel:''}</div>` : '');
+        (alt ? `<div style="font-size:9px;color:rgba(140,180,210,.65);letter-spacing:1px;">ALT ${alt}${vel?' · '+vel:''}</div>` : '');
       if (markersRef.current[id]) {
         markersRef.current[id]
           .setLatLng([pos.latitudeDeg, pos.longitudeDeg])
@@ -435,9 +469,28 @@ export function WorldMap({ positions, trackPoints, selectedNoradId, onSatelliteC
 
     if (!trackPoints?.length || !selectedNoradId) return;
 
-    const color  = getSatColor(selectedNoradId);
-    const nPts   = trackPoints.length;
+    const color    = getSatColor(selectedNoradId);
+    const nPts     = trackPoints.length;
     const splitIdx = Math.floor(nPts * 0.5);
+
+    /* ── read timestamps non-destructively from whatever field the backend uses */
+    const timeFirst  = extractTime(trackPoints[0]);
+    const timeSplit  = extractTime(trackPoints[splitIdx]);
+    const timeLast   = extractTime(trackPoints[nPts - 1]);
+
+    /* helper: past tooltip HTML */
+    const pastTipHtml = `
+      <div style="font-family:'Orbitron',monospace;font-size:9px;letter-spacing:3px;color:${color};margin-bottom:6px;">◀ PAST ORBIT</div>
+      ${timeFirst ? `<div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;color:rgba(140,180,210,.5);margin-bottom:2px;">FROM &nbsp;<span style="color:rgba(200,225,245,.8)">${timeFirst}</span></div>` : ''}
+      ${timeSplit ? `<div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;color:rgba(140,180,210,.5);">&nbsp;&nbsp;TO &nbsp;<span style="color:rgba(200,225,245,.8)">${timeSplit}</span></div>` : ''}
+    `;
+
+    /* helper: future tooltip HTML */
+    const futureTipHtml = `
+      <div style="font-family:'Orbitron',monospace;font-size:9px;letter-spacing:3px;color:${color};opacity:.65;margin-bottom:6px;">▶ FUTURE PATH</div>
+      ${timeSplit ? `<div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;color:rgba(140,180,210,.4);margin-bottom:2px;">FROM &nbsp;<span style="color:rgba(200,225,245,.65)">${timeSplit}</span></div>` : ''}
+      ${timeLast  ? `<div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;color:rgba(140,180,210,.4);">&nbsp;&nbsp;TO &nbsp;<span style="color:rgba(200,225,245,.65)">${timeLast}</span></div>` : ''}
+    `;
 
     function splitAtAntimeridian(pts: TrackPoint[]): [number, number][][] {
       const segs: [number, number][][] = [];
@@ -456,30 +509,62 @@ export function WorldMap({ positions, trackPoints, selectedNoradId, onSatelliteC
     const pastPts   = trackPoints.slice(0, splitIdx + 1);
     const futurePts = trackPoints.slice(splitIdx);
 
+    /* ── PAST: glow halo (non-interactive, visual) ── */
     splitAtAntimeridian(pastPts).forEach(seg => {
       if (seg.length < 2) return;
-      trackRef.current.push(L.polyline(seg, { color, weight: 7, opacity: 0.18, interactive: false, lineCap: 'round', lineJoin: 'round' }).addTo(map));
+      trackRef.current.push(L.polyline(seg, {
+        color, weight: 6, opacity: 0.12, interactive: false, lineCap: 'round', lineJoin: 'round',
+      }).addTo(map));
     });
+
+    /* ── PAST: solid visible line (non-interactive) ── */
     splitAtAntimeridian(pastPts).forEach(seg => {
       if (seg.length < 2) return;
-      trackRef.current.push(L.polyline(seg, { color, weight: 2.5, opacity: 0.95, interactive: false, lineCap: 'round', lineJoin: 'round' }).addTo(map));
+      trackRef.current.push(L.polyline(seg, {
+        color, weight: 2, opacity: 0.9, interactive: false, lineCap: 'round', lineJoin: 'round',
+      }).addTo(map));
     });
+
+    /* ── PAST: breadcrumb dots ── */
     pastPts.forEach((pt, i) => {
       if (i % 8 !== 0) return;
       const ageFraction = i / pastPts.length;
-      const opacity = 0.25 + ageFraction * 0.55;
-      const radius  = 1.5 + ageFraction * 1.5;
-      trackRef.current.push(L.circleMarker([pt.latitudeDeg, pt.longitudeDeg], { radius, color, fillColor: color, fillOpacity: opacity, weight: 0, opacity, interactive: false }).addTo(map));
+      const opacity = 0.2 + ageFraction * 0.5;
+      const radius  = 1.2 + ageFraction * 1.2;
+      trackRef.current.push(L.circleMarker([pt.latitudeDeg, pt.longitudeDeg], {
+        radius, color, fillColor: color, fillOpacity: opacity,
+        weight: 0, opacity, interactive: false,
+      }).addTo(map));
     });
 
+    /* ── PAST: invisible wide hit-area → shows tooltip on hover ── */
+    splitAtAntimeridian(pastPts).forEach(seg => {
+      if (seg.length < 2) return;
+      const overlay = L.polyline(seg, { color, weight: 20, opacity: 0, interactive: true });
+      overlay.bindTooltip(pastTipHtml, {
+        sticky: true, direction: 'top', offset: [0, -12], className: 'trk-tip-past',
+      });
+      overlay.addTo(map);
+      trackRef.current.push(overlay as unknown as Polyline);
+    });
+
+    /* ── FUTURE: glow halo (non-interactive, visual) ── */
     splitAtAntimeridian(futurePts).forEach(seg => {
       if (seg.length < 2) return;
-      trackRef.current.push(L.polyline(seg, { color, weight: 5, opacity: 0.08, interactive: false, lineCap: 'round' }).addTo(map));
+      trackRef.current.push(L.polyline(seg, {
+        color, weight: 4, opacity: 0.06, interactive: false, lineCap: 'round',
+      }).addTo(map));
     });
+
+    /* ── FUTURE: dashed visible line (non-interactive) ── */
     splitAtAntimeridian(futurePts).forEach(seg => {
       if (seg.length < 2) return;
-      trackRef.current.push(L.polyline(seg, { color, weight: 1.8, opacity: 0.65, dashArray: '5 9', interactive: false, lineCap: 'round' }).addTo(map));
+      trackRef.current.push(L.polyline(seg, {
+        color, weight: 1.5, opacity: 0.55, dashArray: '5 9', interactive: false, lineCap: 'round',
+      }).addTo(map));
     });
+
+    /* ── FUTURE: direction arrows ── */
     futurePts.forEach((pt, i) => {
       if (i === 0 || i % 12 !== 0 || i >= futurePts.length - 1) return;
       const prev = futurePts[i - 1];
@@ -488,7 +573,7 @@ export function WorldMap({ positions, trackPoints, selectedNoradId, onSatelliteC
       trackRef.current.push(
         L.marker([pt.latitudeDeg, pt.longitudeDeg], {
           icon: L.divIcon({
-            html: `<div style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:9px solid ${color};opacity:0.75;transform:rotate(${angle}deg);transform-origin:center center;filter:drop-shadow(0 0 3px ${color});"></div>`,
+            html: `<div style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:9px solid ${color};opacity:0.6;transform:rotate(${angle}deg);transform-origin:center center;"></div>`,
             className: '', iconSize: [8, 9], iconAnchor: [4, 4],
           }),
           interactive: false, zIndexOffset: -100,
@@ -496,9 +581,47 @@ export function WorldMap({ positions, trackPoints, selectedNoradId, onSatelliteC
       );
     });
 
-    trackRef.current.push(L.circleMarker([trackPoints[0].latitudeDeg, trackPoints[0].longitudeDeg], { radius: 4, color, fillColor: 'transparent', fillOpacity: 0, weight: 1.5, opacity: 0.5, interactive: false }).addTo(map));
-    trackRef.current.push(L.circleMarker([trackPoints[nPts-1].latitudeDeg, trackPoints[nPts-1].longitudeDeg], { radius: 5, color, fillColor: color, fillOpacity: 0.15, weight: 1.5, opacity: 0.6, interactive: false }).addTo(map));
-    trackRef.current.push(L.circleMarker([trackPoints[splitIdx].latitudeDeg, trackPoints[splitIdx].longitudeDeg], { radius: 7, color, fillColor: color, fillOpacity: 0.12, weight: 1.5, opacity: 0.7, interactive: false }).addTo(map));
+    /* ── FUTURE: invisible wide hit-area → shows tooltip on hover ── */
+    splitAtAntimeridian(futurePts).forEach(seg => {
+      if (seg.length < 2) return;
+      const overlay = L.polyline(seg, { color, weight: 20, opacity: 0, interactive: true });
+      overlay.bindTooltip(futureTipHtml, {
+        sticky: true, direction: 'top', offset: [0, -12], className: 'trk-tip-future',
+      });
+      overlay.addTo(map);
+      trackRef.current.push(overlay as unknown as Polyline);
+    });
+
+    /* ── endpoint circle markers with tooltips ── */
+    const startTip =
+      `<div style="font-family:'Orbitron',monospace;font-size:9px;letter-spacing:2px;color:${color};margin-bottom:3px;">◀ TRACK START</div>` +
+      (timeFirst ? `<div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(200,225,245,.75);">${timeFirst}</div>` : '');
+
+    const nowTip =
+      `<div style="font-family:'Orbitron',monospace;font-size:9px;letter-spacing:2px;color:${color};margin-bottom:3px;">◉ CURRENT POSITION</div>` +
+      (timeSplit ? `<div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(200,225,245,.8);">${timeSplit}</div>` : '');
+
+    const endTip =
+      `<div style="font-family:'Orbitron',monospace;font-size:9px;letter-spacing:2px;color:${color};opacity:.65;margin-bottom:3px;">▶ TRACK END</div>` +
+      (timeLast ? `<div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(200,225,245,.65);">${timeLast}</div>` : '');
+
+    const startMarker = L.circleMarker(
+      [trackPoints[0].latitudeDeg, trackPoints[0].longitudeDeg],
+      { radius: 3.5, color, fillColor: 'transparent', fillOpacity: 0, weight: 1.2, opacity: 0.4, interactive: true }
+    ).bindTooltip(startTip, { direction: 'top', offset: [0, -8], className: 'trk-tip-node' }).addTo(map);
+    trackRef.current.push(startMarker);
+
+    const nowMarker = L.circleMarker(
+      [trackPoints[splitIdx].latitudeDeg, trackPoints[splitIdx].longitudeDeg],
+      { radius: 6, color, fillColor: color, fillOpacity: 0.1, weight: 1.2, opacity: 0.6, interactive: true }
+    ).bindTooltip(nowTip, { direction: 'top', offset: [0, -10], className: 'trk-tip-node' }).addTo(map);
+    trackRef.current.push(nowMarker);
+
+    const endMarker = L.circleMarker(
+      [trackPoints[nPts - 1].latitudeDeg, trackPoints[nPts - 1].longitudeDeg],
+      { radius: 4.5, color, fillColor: color, fillOpacity: 0.12, weight: 1.2, opacity: 0.5, interactive: true }
+    ).bindTooltip(endTip, { direction: 'top', offset: [0, -8], className: 'trk-tip-node' }).addTo(map);
+    trackRef.current.push(endMarker);
 
   }, [trackPoints, selectedNoradId]);
 
@@ -514,28 +637,26 @@ export function WorldMap({ positions, trackPoints, selectedNoradId, onSatelliteC
       [observerLocation.lat, observerLocation.lon],
       { icon: makeObserverIcon(), zIndexOffset: 1000 }
     ).bindTooltip(
-      `<div style="font-family:'Orbitron',monospace;font-size:10px;color:#00ff88;letter-spacing:3px;">OBSERVER</div>
-       <div style="font-size:9px;color:rgba(0,255,136,.65);letter-spacing:1px;margin-top:2px;">
+      `<div style="font-family:'Orbitron',monospace;font-size:10px;color:#2E8B57;letter-spacing:3px;">OBSERVER</div>
+       <div style="font-size:9px;color:rgba(46,139,87,.6);letter-spacing:1px;margin-top:2px;">
          ${observerLocation.lat.toFixed(3)}° · ${observerLocation.lon.toFixed(3)}°</div>`,
       { direction: 'top', offset: [0, -18] }
     ).addTo(map);
 
     horizonRef.current = L.circle(
       [observerLocation.lat, observerLocation.lon],
-      { radius:1_800_000, color:'rgba(0,255,136,.3)', fillColor:'rgba(0,255,136,.04)', weight:1.2, dashArray:'6 10', interactive:false }
+      { radius:1_800_000, color:'rgba(46,139,87,.22)', fillColor:'rgba(46,139,87,.03)', weight:1, dashArray:'6 10', interactive:false }
     ).addTo(map);
 
     L.circle(
       [observerLocation.lat, observerLocation.lon],
-      { radius:500_000, color:'rgba(0,255,136,.12)', fillColor:'transparent', weight:0.6, dashArray:'3 6', interactive:false }
+      { radius:500_000, color:'rgba(46,139,87,.09)', fillColor:'transparent', weight:0.5, dashArray:'3 6', interactive:false }
     ).addTo(map);
 
     return () => { observerMarkerRef.current?.remove(); horizonRef.current?.remove(); };
   }, [observerLocation]);
 
   /* ── 8. Reverse-geocode selected satellite ───────────────── */
-  // FIX: Nominatim returns {"error":"Unable to geocode"} for open ocean coords.
-  // Explicitly check data.error, keep prev label on network failure.
   useEffect(() => {
     if (!selectedNoradId || !positions[selectedNoradId]) { setLocationLabel(''); return; }
     if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
@@ -586,158 +707,158 @@ export function WorldMap({ positions, trackPoints, selectedNoradId, onSatelliteC
   };
 
   const sel    = selectedNoradId ? positions[selectedNoradId] : null;
-  const selClr = selectedNoradId ? getSatColor(selectedNoradId) : '#00d4ff';
+  const selClr = selectedNoradId ? getSatColor(selectedNoradId) : '#00C2FF';
 
   const zoomLabel = zoomLevel <= 2 ? 'GLOBAL' : zoomLevel <= 4 ? 'CONTINENT'
     : zoomLevel <= 6 ? 'COUNTRY' : zoomLevel <= 9 ? 'REGION'
     : zoomLevel <= 11 ? 'CITY' : zoomLevel <= 14 ? 'DISTRICT' : 'STREET';
 
   const viewBtns: { mode: ViewMode; label: string; icon: string; color: string; desc: string }[] = [
-    { mode: 'normal',    label: 'DARK',    icon: '◈', color: '#00c8ff', desc: 'Dark vector' },
-    { mode: 'satellite', label: 'SAT',     icon: '⊛', color: '#34d399', desc: 'Aerial imagery' },
-    { mode: 'terrain',   label: 'TERRAIN', icon: '⬡', color: '#fbbf24', desc: 'Topographic' },
+    { mode: 'normal',    label: 'DARK',    icon: '◈', color: '#00C2FF', desc: 'Dark vector' },
+    { mode: 'satellite', label: 'SAT',     icon: '⊛', color: '#4DA8CC', desc: 'Aerial imagery' },
+    { mode: 'terrain',   label: 'TERRAIN', icon: '⬡', color: '#B87333', desc: 'Topographic' },
   ];
 
   return (
-    <div style={{ position:'relative', width:'100%', height:'100%', borderRadius:'inherit', overflow:'hidden', background:'#020a18' }}>
+    <div style={{ position:'relative', width:'100%', height:'100%', borderRadius:'inherit', overflow:'hidden', background:'#0B0F1A' }}>
 
-      <div ref={containerRef} style={{ width:'100%', height:'100%', background:'#020a18', opacity: isTransition ? 0.6 : 1, transition:'opacity 0.4s ease' }} />
+      <div ref={containerRef} style={{ width:'100%', height:'100%', background:'#0B0F1A', opacity: isTransition ? 0.6 : 1, transition:'opacity 0.4s ease' }} />
 
-      <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:400, backgroundImage:'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,200,255,.012) 2px,rgba(0,200,255,.012) 4px)', opacity: viewMode === 'satellite' ? 0.35 : 1 }} />
-      <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:401, background:'radial-gradient(ellipse at center,transparent 50%,rgba(2,10,24,.68) 100%)' }} />
+      <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:400, backgroundImage:'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,194,255,.008) 2px,rgba(0,194,255,.008) 4px)', opacity: viewMode === 'satellite' ? 0.25 : 1 }} />
+      <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:401, background:'radial-gradient(ellipse at center,transparent 55%,rgba(11,15,26,.55) 100%)' }} />
 
       {[
-        { top:8,    left:8,   borderTop:'2px solid rgba(0,200,255,.5)',    borderLeft:'2px solid rgba(0,200,255,.5)' },
-        { top:8,    right:8,  borderTop:'2px solid rgba(0,200,255,.5)',    borderRight:'2px solid rgba(0,200,255,.5)' },
-        { bottom:8, left:8,   borderBottom:'2px solid rgba(0,200,255,.5)', borderLeft:'2px solid rgba(0,200,255,.5)' },
-        { bottom:8, right:8,  borderBottom:'2px solid rgba(0,200,255,.5)', borderRight:'2px solid rgba(0,200,255,.5)' },
-      ].map((s,i) => <div key={i} style={{ position:'absolute', width:18, height:18, pointerEvents:'none', zIndex:460, ...s }} />)}
+        { top:8,    left:8,   borderTop:'1.5px solid rgba(0,194,255,.35)',    borderLeft:'1.5px solid rgba(0,194,255,.35)' },
+        { top:8,    right:8,  borderTop:'1.5px solid rgba(0,194,255,.35)',    borderRight:'1.5px solid rgba(0,194,255,.35)' },
+        { bottom:8, left:8,   borderBottom:'1.5px solid rgba(0,194,255,.35)', borderLeft:'1.5px solid rgba(0,194,255,.35)' },
+        { bottom:8, right:8,  borderBottom:'1.5px solid rgba(0,194,255,.35)', borderRight:'1.5px solid rgba(0,194,255,.35)' },
+      ].map((s,i) => <div key={i} style={{ position:'absolute', width:16, height:16, pointerEvents:'none', zIndex:460, ...s }} />)}
 
-      <div style={{ position:'absolute', top:12, left:'50%', transform:'translateX(-50%)', zIndex:460, display:'flex', alignItems:'center', gap:8, background:'rgba(3,7,24,.92)', border:'1px solid rgba(0,200,255,.22)', padding:'5px 18px', backdropFilter:'blur(14px)', pointerEvents:'none' }}>
-        <span style={{ width:6, height:6, borderRadius:'50%', background:'#00ff88', boxShadow:'0 0 10px #00ff88', display:'inline-block', animation:'__blink 1.5s infinite' }} />
-        <span style={{ fontFamily:"'Orbitron',monospace", fontSize:9, letterSpacing:4, color:'rgba(0,200,255,.85)' }}>LIVE ORBITAL DISPLAY</span>
+      <div style={{ position:'absolute', top:12, left:'50%', transform:'translateX(-50%)', zIndex:460, display:'flex', alignItems:'center', gap:8, background:'rgba(11,15,26,.95)', border:'1px solid rgba(0,194,255,.18)', padding:'5px 18px', pointerEvents:'none' }}>
+        <span style={{ width:5, height:5, borderRadius:'50%', background:'#2E8B57', display:'inline-block', animation:'__blink 1.5s infinite' }} />
+        <span style={{ fontFamily:"'Orbitron',monospace", fontSize:9, letterSpacing:4, color:'rgba(0,194,255,.8)' }}>LIVE ORBITAL DISPLAY</span>
       </div>
 
       <div style={{ position:'absolute', top:12, left:12, zIndex:460, animation:'__fadeIn 0.4s ease' }}>
-        <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:2, color:'rgba(0,200,255,.35)', marginBottom:4, paddingLeft:2 }}>MAP VIEW</div>
+        <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:2, color:'rgba(0,194,255,.28)', marginBottom:4, paddingLeft:2 }}>MAP VIEW</div>
         <div style={{ display:'flex', gap:3 }}>
           {viewBtns.map(({ mode, label, icon, color, desc }) => {
             const active = viewMode === mode;
             return (
-              <button key={mode} title={desc} onClick={() => setViewMode(mode)} style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, width:56, height:52, cursor:'pointer', position:'relative', background: active ? `linear-gradient(145deg,${color}22,${color}0c)` : 'rgba(3,7,24,.92)', border: `1px solid ${active ? color : 'rgba(0,200,255,.15)'}`, borderRadius:2, color: active ? color : 'rgba(0,200,255,.4)', backdropFilter:'blur(14px)', boxShadow: active ? `0 0 18px ${color}44,inset 0 0 10px ${color}10` : '0 2px 8px rgba(0,0,0,.5)', transition:'all 0.22s ease', padding:0 }}>
-                <span style={{ fontSize:14, lineHeight:1, opacity:active?1:0.55 }}>{icon}</span>
-                <span style={{ fontFamily:"'Orbitron',monospace", fontSize:7, letterSpacing:1, fontWeight:700, lineHeight:1, opacity:active?1:0.45 }}>{label}</span>
-                {active && <span style={{ position:'absolute', bottom:2, width:24, height:1.5, background:color, borderRadius:1, boxShadow:`0 0 6px ${color}` }} />}
+              <button key={mode} title={desc} onClick={() => setViewMode(mode)} style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, width:56, height:52, cursor:'pointer', position:'relative', background: active ? 'rgba(0,194,255,.06)' : 'rgba(11,15,26,.95)', border: `1px solid ${active ? color : 'rgba(0,194,255,.12)'}`, borderRadius:2, color: active ? color : 'rgba(0,194,255,.35)', transition:'all 0.2s ease', padding:0 }}>
+                <span style={{ fontSize:14, lineHeight:1, opacity:active?1:0.45 }}>{icon}</span>
+                <span style={{ fontFamily:"'Orbitron',monospace", fontSize:7, letterSpacing:1, fontWeight:700, lineHeight:1, opacity:active?1:0.4 }}>{label}</span>
+                {active && <span style={{ position:'absolute', bottom:2, width:20, height:1, background:color, borderRadius:1 }} />}
               </button>
             );
           })}
         </div>
-        <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1, color: viewBtns.find(b=>b.mode===viewMode)?.color, opacity:0.5, paddingLeft:2, marginTop:5, transition:'color 0.3s' }}>{viewBtns.find(b=>b.mode===viewMode)?.desc}</div>
+        <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1, color: viewBtns.find(b=>b.mode===viewMode)?.color, opacity:0.4, paddingLeft:2, marginTop:5, transition:'color 0.3s' }}>{viewBtns.find(b=>b.mode===viewMode)?.desc}</div>
       </div>
 
-      <div style={{ position:'absolute', top:138, left:12, zIndex:460, background:'rgba(3,7,24,.92)', border:'1px solid rgba(66,133,244,.22)', borderLeft:'3px solid #4285f4', backdropFilter:'blur(14px)', minWidth:178, animation:'__fadeIn 0.5s ease 0.15s both' }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px 6px', borderBottom:'1px solid rgba(66,133,244,.12)' }}>
+      <div style={{ position:'absolute', top:138, left:12, zIndex:460, background:'rgba(11,15,26,.95)', border:'1px solid rgba(66,133,244,.18)', borderLeft:'2px solid rgba(66,133,244,.4)', minWidth:178, animation:'__fadeIn 0.5s ease 0.15s both' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px 6px', borderBottom:'1px solid rgba(66,133,244,.1)' }}>
           <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-            <div style={{ width:8, height:8, borderRadius:'50%', background:'#4285f4', boxShadow:'0 0 8px #4285f4', animation: locStatus==='locating' ? '__pulse 0.9s infinite' : 'none' }} />
+            <div style={{ width:7, height:7, borderRadius:'50%', background:'#4285f4', animation: locStatus==='locating' ? '__pulse 0.9s infinite' : 'none' }} />
             <span style={{ fontFamily:"'Orbitron',monospace", fontSize:8, letterSpacing:2, color:'#4285f4' }}>MY LOCATION</span>
           </div>
-          <button onClick={flyToMe} title="Fly to my location on map" style={{ background:'rgba(66,133,244,.15)', border:'1px solid rgba(66,133,244,.3)', borderRadius:2, color:'#4285f4', cursor:'pointer', padding:'2px 8px', fontFamily:"'Orbitron',monospace", fontSize:8, letterSpacing:1, transition:'all 0.2s', display:'flex', alignItems:'center', gap:3 }} onMouseEnter={e => (e.currentTarget.style.background = 'rgba(66,133,244,.28)')} onMouseLeave={e => (e.currentTarget.style.background = 'rgba(66,133,244,.15)')}>⊕ GOTO</button>
+          <button onClick={flyToMe} title="Fly to my location on map" style={{ background:'rgba(66,133,244,.1)', border:'1px solid rgba(66,133,244,.25)', borderRadius:2, color:'#4285f4', cursor:'pointer', padding:'2px 8px', fontFamily:"'Orbitron',monospace", fontSize:8, letterSpacing:1, transition:'background 0.2s', display:'flex', alignItems:'center', gap:3 }} onMouseEnter={e => (e.currentTarget.style.background = 'rgba(66,133,244,.2)')} onMouseLeave={e => (e.currentTarget.style.background = 'rgba(66,133,244,.1)')}>⊕ GOTO</button>
         </div>
         <div style={{ padding:'8px 10px' }}>
-          {locStatus === 'idle' && <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'rgba(100,150,200,.5)', letterSpacing:0.5 }}>Waiting for GPS…</div>}
-          {locStatus === 'locating' && <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'rgba(66,133,244,.65)', display:'flex', alignItems:'center', gap:6 }}><span style={{ animation:'__blink 0.9s infinite' }}>◉</span> Acquiring GPS signal…</div>}
-          {locStatus === 'error' && <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'rgba(255,100,100,.75)', letterSpacing:0.5, lineHeight:1.5 }}>⚠ {userLocLabel}</div>}
+          {locStatus === 'idle' && <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'rgba(100,140,180,.45)', letterSpacing:0.5 }}>Waiting for GPS…</div>}
+          {locStatus === 'locating' && <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'rgba(66,133,244,.6)', display:'flex', alignItems:'center', gap:6 }}><span style={{ animation:'__blink 0.9s infinite' }}>◉</span> Acquiring GPS signal…</div>}
+          {locStatus === 'error' && <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'rgba(180,80,80,.7)', letterSpacing:0.5, lineHeight:1.5 }}>⚠ {userLocLabel}</div>}
           {locStatus === 'found' && userPos && (
             <>
-              {userLocLabel && <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9.5, letterSpacing:0.5, color:'rgba(190,220,255,.9)', marginBottom:7, lineHeight:1.55 }}>{userLocLabel}</div>}
+              {userLocLabel && <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9.5, letterSpacing:0.5, color:'rgba(180,210,240,.85)', marginBottom:7, lineHeight:1.55 }}>{userLocLabel}</div>}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'4px 10px', marginBottom:5 }}>
                 {[['LAT', `${userPos.lat.toFixed(5)}°`], ['LON', `${userPos.lon.toFixed(5)}°`]].map(([k,v]) => (
                   <div key={k}>
-                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:7, letterSpacing:1, color:'rgba(66,133,244,.5)', marginBottom:1 }}>{k}</div>
-                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'#e2f0ff', letterSpacing:0.5 }}>{v}</div>
+                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:7, letterSpacing:1, color:'rgba(66,133,244,.45)', marginBottom:1 }}>{k}</div>
+                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'#CBD9E8', letterSpacing:0.5 }}>{v}</div>
                   </div>
                 ))}
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4 }}>
-                <div style={{ flex:1, height:2, background:'rgba(66,133,244,.15)', borderRadius:1 }}>
-                  <div style={{ height:'100%', borderRadius:1, background:'#4285f4', width:`${Math.max(5, Math.min(100, 100 - Math.log10(Math.max(userPos.acc,1)) * 30))}%`, transition:'width 1s ease', boxShadow:'0 0 6px #4285f4' }} />
+                <div style={{ flex:1, height:1.5, background:'rgba(66,133,244,.12)', borderRadius:1 }}>
+                  <div style={{ height:'100%', borderRadius:1, background:'#4285f4', width:`${Math.max(5, Math.min(100, 100 - Math.log10(Math.max(userPos.acc,1)) * 30))}%`, transition:'width 1s ease' }} />
                 </div>
-                <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, color:'rgba(66,133,244,.5)', letterSpacing:0.5, whiteSpace:'nowrap' }}>±{Math.round(userPos.acc)}m</span>
+                <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, color:'rgba(66,133,244,.45)', letterSpacing:0.5, whiteSpace:'nowrap' }}>±{Math.round(userPos.acc)}m</span>
               </div>
             </>
           )}
         </div>
       </div>
 
-      <div style={{ position:'absolute', bottom:82, right:11, zIndex:460, background:'rgba(3,7,24,.9)', border:'1px solid rgba(0,200,255,.12)', padding:'5px 10px', backdropFilter:'blur(10px)', pointerEvents:'none', display:'flex', flexDirection:'column', alignItems:'center', minWidth:52 }}>
-        <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:7, letterSpacing:1.5, color:'rgba(0,200,255,.35)', marginBottom:1 }}>ZOOM</span>
-        <span style={{ fontFamily:"'Orbitron',monospace", fontSize:14, fontWeight:700, color:'rgba(0,200,255,.8)', lineHeight:1 }}>{zoomLevel}</span>
-        <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:7, color:'rgba(0,200,255,.3)', letterSpacing:0.5, marginTop:2 }}>{zoomLabel}</span>
+      <div style={{ position:'absolute', bottom:82, right:11, zIndex:460, background:'rgba(11,15,26,.92)', border:'1px solid rgba(0,194,255,.1)', padding:'5px 10px', pointerEvents:'none', display:'flex', flexDirection:'column', alignItems:'center', minWidth:52 }}>
+        <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:7, letterSpacing:1.5, color:'rgba(0,194,255,.28)', marginBottom:1 }}>ZOOM</span>
+        <span style={{ fontFamily:"'Orbitron',monospace", fontSize:14, fontWeight:700, color:'rgba(0,194,255,.7)', lineHeight:1 }}>{zoomLevel}</span>
+        <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:7, color:'rgba(0,194,255,.25)', letterSpacing:0.5, marginTop:2 }}>{zoomLabel}</span>
       </div>
 
-      <div style={{ position:'absolute', bottom:36, left:12, zIndex:460, background:'rgba(3,7,24,.9)', border:'1px solid rgba(0,200,255,.15)', padding:'5px 12px', backdropFilter:'blur(10px)', pointerEvents:'none' }}>
-        <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, letterSpacing:2, color:'rgba(0,200,255,.6)' }}>
-          {count} <span style={{ color:'rgba(0,200,255,.3)' }}>OBJECTS TRACKED</span>
+      <div style={{ position:'absolute', bottom:36, left:12, zIndex:460, background:'rgba(11,15,26,.92)', border:'1px solid rgba(0,194,255,.12)', padding:'5px 12px', pointerEvents:'none' }}>
+        <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, letterSpacing:2, color:'rgba(0,194,255,.55)' }}>
+          {count} <span style={{ color:'rgba(0,194,255,.25)' }}>OBJECTS TRACKED</span>
         </span>
       </div>
 
       {sel && selectedNoradId && (
-        <div style={{ position:'absolute', bottom:36, right:48, zIndex:460, background:'rgba(3,7,24,.94)', border:`1px solid ${selClr}28`, borderLeft:`3px solid ${selClr}`, padding:'10px 14px', backdropFilter:'blur(14px)', pointerEvents:'none', minWidth:225, boxShadow:`0 0 30px ${selClr}18`, animation:'__fadeIn 0.3s ease' }}>
-          <div style={{ fontFamily:"'Orbitron',monospace", fontSize:10, fontWeight:600, letterSpacing:2, color:selClr, textShadow:`0 0 12px ${selClr}`, marginBottom:8, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sel.name || `NORAD ${selectedNoradId}`}</div>
+        <div style={{ position:'absolute', bottom:36, right:48, zIndex:460, background:'rgba(11,15,26,.97)', border:`1px solid ${selClr}22`, borderLeft:`2px solid ${selClr}`, padding:'10px 14px', pointerEvents:'none', minWidth:225, animation:'__fadeIn 0.3s ease' }}>
+          <div style={{ fontFamily:"'Orbitron',monospace", fontSize:10, fontWeight:600, letterSpacing:2, color:selClr, marginBottom:8, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sel.name || `NORAD ${selectedNoradId}`}</div>
           {locationLabel && (
-            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8, paddingBottom:7, borderBottom:`1px solid ${selClr}18` }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8, paddingBottom:7, borderBottom:`1px solid ${selClr}14` }}>
               <span style={{ fontSize:11 }}>📍</span>
-              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, letterSpacing:1, color:`${selClr}cc`, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:175 }}>{locationLabel}</span>
+              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, letterSpacing:1, color:`${selClr}aa`, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:175 }}>{locationLabel}</span>
             </div>
           )}
           {([['LAT', `${(sel.latitudeDeg||0).toFixed(3)}°`], ['LON', `${(sel.longitudeDeg||0).toFixed(3)}°`], ['ALT', sel.altitudeKm ? `${sel.altitudeKm.toFixed(0)} km` : '—'], ['VEL', sel.speedKmPerS ? `${sel.speedKmPerS.toFixed(2)} km/s` : '—']] as [string,string][]).map(([k,v]) => (
-            <div key={k} style={{ display:'flex', justifyContent:'space-between', gap:20, padding:'3px 0', borderBottom:'1px solid rgba(0,200,255,.06)' }}>
-              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, letterSpacing:1, color:'rgba(140,180,210,.5)' }}>{k}</span>
-              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:11, fontWeight:'bold', color:'#e2f0ff' }}>{v}</span>
+            <div key={k} style={{ display:'flex', justifyContent:'space-between', gap:20, padding:'3px 0', borderBottom:'1px solid rgba(0,194,255,.05)' }}>
+              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, letterSpacing:1, color:'rgba(100,140,170,.45)' }}>{k}</span>
+              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:11, fontWeight:'bold', color:'#CBD9E8' }}>{v}</span>
             </div>
           ))}
           {sel.altitudeKm && (
             <div style={{ marginTop:8 }}>
-              <div style={{ height:2, background:`${selClr}18`, borderRadius:1 }}>
-                <div style={{ height:'100%', width:`${Math.min(100,(sel.altitudeKm/2000)*100)}%`, background:`linear-gradient(90deg,${selClr},${selClr}88)`, boxShadow:`0 0 8px ${selClr}`, borderRadius:1, transition:'width 1.2s ease' }} />
+              <div style={{ height:1.5, background:`${selClr}14`, borderRadius:1 }}>
+                <div style={{ height:'100%', width:`${Math.min(100,(sel.altitudeKm/2000)*100)}%`, background:selClr, borderRadius:1, transition:'width 1.2s ease' }} />
               </div>
             </div>
           )}
         </div>
       )}
 
-      <div style={{ position:'absolute', top:12, right:12, zIndex:460, background:'rgba(3,7,24,.87)', border:'1px solid rgba(0,200,255,.1)', padding:'8px 12px', backdropFilter:'blur(10px)', pointerEvents:'none' }}>
+      <div style={{ position:'absolute', top:12, right:12, zIndex:460, background:'rgba(11,15,26,.9)', border:'1px solid rgba(0,194,255,.1)', padding:'8px 12px', pointerEvents:'none' }}>
         {[
-          { c:'rgba(0,212,255,.6)',   label:'EQUATOR',  dot:false, solid:false },
-          { c:'rgba(255,120,50,.5)',  label:'TROPICS',  dot:false, solid:false },
-          { c:'rgba(100,180,255,.4)', label:'POLAR',    dot:false, solid:false },
-          { c:'rgba(0,255,136,.5)',   label:'OBSERVER', dot:false, solid:true  },
+          { c:'rgba(0,194,255,.5)',   label:'EQUATOR',  dot:false, solid:false },
+          { c:'rgba(184,115,51,.45)', label:'TROPICS',  dot:false, solid:false },
+          { c:'rgba(0,150,200,.35)',  label:'POLAR',    dot:false, solid:false },
+          { c:'rgba(46,139,87,.45)',  label:'OBSERVER', dot:false, solid:true  },
           { c:'#4285f4',              label:'YOU',      dot:true,  solid:false },
         ].map(({ c, label, dot, solid }) => (
           <div key={label} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:3 }}>
-            {dot ? <div style={{ width:8, height:8, borderRadius:'50%', background:c, border:'1.5px solid #fff', flexShrink:0 }} /> : <div style={{ width:18, height:0, borderTop: solid ? `2px solid ${c}` : `1.5px dashed ${c}`, flexShrink:0 }} />}
-            <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1.5, color:'rgba(0,200,255,.35)' }}>{label}</span>
+            {dot ? <div style={{ width:7, height:7, borderRadius:'50%', background:c, border:'1.5px solid #fff', flexShrink:0 }} /> : <div style={{ width:18, height:0, borderTop: solid ? `1.5px solid ${c}` : `1px dashed ${c}`, flexShrink:0 }} />}
+            <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1.5, color:'rgba(0,194,255,.28)' }}>{label}</span>
           </div>
         ))}
-        <div style={{ borderTop:'1px solid rgba(0,200,255,.08)', marginTop:5, paddingTop:5 }}>
+        <div style={{ borderTop:'1px solid rgba(0,194,255,.06)', marginTop:5, paddingTop:5 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:3 }}>
-            <div style={{ width:18, height:0, borderTop:'2px solid rgba(0,212,255,.8)', flexShrink:0 }} />
-            <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1.5, color:'rgba(0,200,255,.35)' }}>PAST ORBIT</span>
+            <div style={{ width:18, height:0, borderTop:'1.5px solid rgba(0,194,255,.7)', flexShrink:0 }} />
+            <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1.5, color:'rgba(0,194,255,.28)' }}>PAST ORBIT</span>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <div style={{ width:18, height:0, borderTop:'1.5px dashed rgba(0,212,255,.5)', flexShrink:0 }} />
-            <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1.5, color:'rgba(0,200,255,.35)' }}>FUTURE PATH</span>
+            <div style={{ width:18, height:0, borderTop:'1px dashed rgba(0,194,255,.4)', flexShrink:0 }} />
+            <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1.5, color:'rgba(0,194,255,.28)' }}>FUTURE PATH</span>
           </div>
         </div>
       </div>
 
-      {isTransition && <div style={{ position:'absolute', inset:0, zIndex:500, pointerEvents:'none', background:'rgba(2,10,24,.28)', animation:'__blink 0.4s ease' }} />}
+      {isTransition && <div style={{ position:'absolute', inset:0, zIndex:500, pointerEvents:'none', background:'rgba(11,15,26,.22)', animation:'__blink 0.4s ease' }} />}
 
       <style>{`
-        @keyframes __blink   { 0%,100%{opacity:1} 50%{opacity:.15} }
+        @keyframes __blink   { 0%,100%{opacity:1} 50%{opacity:.25} }
         @keyframes __fadeIn  { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
         @keyframes __pulse   { 0%,100%{transform:scale(1)} 50%{transform:scale(1.22)} }
-        @keyframes __locPing { 0%{transform:scale(1);opacity:0.65} 100%{transform:scale(3.2);opacity:0} }
+        @keyframes __locPing { 0%{transform:scale(1);opacity:0.6} 100%{transform:scale(3.2);opacity:0} }
       `}</style>
     </div>
   );

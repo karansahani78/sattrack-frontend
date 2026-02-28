@@ -184,6 +184,10 @@ export function Doppler() {
   const [passStart, setPassStart] = useState('');
   const [passEnd,   setPassEnd]   = useState('');
 
+  // ── NEW: locate button state so the user sees feedback ───────────────────
+  const [locating, setLocating] = useState(false);
+  const [locError, setLocError] = useState('');
+
   // ── Build request ─────────────────────────────────────────────────────────
   const buildReq = useCallback((): DopplerRequest | null => {
     const pLat = parseFloat(lat);
@@ -201,13 +205,32 @@ export function Doppler() {
   const req = buildReq();
   const { result, curve, loading, error, fetchCurrent, fetchCurve } = useDoppler(req);
 
+  // ── FIX: added error callback + loading state so button actually works ────
   const locateAndFill = () => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(pos => {
-      setLat(pos.coords.latitude.toFixed(5));
-      setLon(pos.coords.longitude.toFixed(5));
-      setAlt(((pos.coords.altitude ?? 0) / 1000).toFixed(3));
-    });
+    if (!navigator.geolocation) {
+      setLocError('Geolocation not supported by this browser');
+      return;
+    }
+    setLocating(true);
+    setLocError('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLat(pos.coords.latitude.toFixed(5));
+        setLon(pos.coords.longitude.toFixed(5));
+        setAlt(((pos.coords.altitude ?? 0) / 1000).toFixed(3));
+        setLocating(false);
+      },
+      (err) => {
+        const msgs: Record<number, string> = {
+          1: 'Location permission denied',
+          2: 'Position unavailable',
+          3: 'Location request timed out',
+        };
+        setLocError(msgs[err.code] || 'Location error');
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
   };
 
   const canSubmit = !!req && !loading;
@@ -292,13 +315,33 @@ export function Doppler() {
             type="number" step="0.00001" placeholder="e.g. -74.0060" unit="°" />
           <Field label="ALTITUDE" value={alt} onChange={setAlt}
             type="number" step="0.001" min="0" unit="km" />
-          <button onClick={locateAndFill}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
-              background: 'rgba(0,200,255,.08)', border: '1px solid rgba(0,200,255,.25)',
-              color: '#00c8ff', fontFamily: "'Share Tech Mono',monospace",
-              fontSize: 10, letterSpacing: 2, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            <MapPin style={{ width: 11, height: 11 }} /> LOCATE
-          </button>
+
+          {/* ── LOCATE button with loading + error feedback ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <button
+              onClick={locateAndFill}
+              disabled={locating}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
+                background: locating ? 'rgba(0,200,255,.04)' : 'rgba(0,200,255,.08)',
+                border: `1px solid ${locating ? 'rgba(0,200,255,.15)' : 'rgba(0,200,255,.25)'}`,
+                color: locating ? 'rgba(0,200,255,.4)' : '#00c8ff',
+                fontFamily: "'Share Tech Mono',monospace",
+                fontSize: 10, letterSpacing: 2,
+                cursor: locating ? 'not-allowed' : 'pointer',
+                whiteSpace: 'nowrap', transition: 'all .2s',
+              }}>
+              <MapPin style={{ width: 11, height: 11,
+                animation: locating ? '__spin 1s linear infinite' : 'none' }} />
+              {locating ? 'LOCATING…' : 'LOCATE'}
+            </button>
+            {locError && (
+              <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 8,
+                color: '#ff4466', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>
+                ⚠ {locError}
+              </span>
+            )}
+          </div>
         </div>
 
         <div style={{ marginTop: 20 }}>
@@ -382,7 +425,6 @@ export function Doppler() {
           <Activity style={{ width: 11, height: 11 }} /> DOPPLER CURVE — PASS WINDOW
         </div>
 
-        {/* ── MAX WINDOW HINT ── */}
         <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 9, letterSpacing: 1,
           color: 'rgba(0,200,255,.28)', marginBottom: 18 }}>
           MAX {MAX_CURVE_MINUTES} MIN WINDOW · backend samples every 5 s · typical pass = 5–12 min
@@ -411,7 +453,6 @@ export function Doppler() {
               if (!windowOk) return;
               const startIso = passStart + ':00Z';
               const endIso   = passEnd + ':00Z';
-              
               fetchCurve(startIso, endIso);
             }}
             disabled={!canCurve}
@@ -425,7 +466,6 @@ export function Doppler() {
           </button>
         </div>
 
-        {/* ── Window duration indicator ── */}
         {passStart && passEnd && (
           <div style={{ marginBottom: 16 }}>
             {windowNegative && (
@@ -460,7 +500,6 @@ export function Doppler() {
           </div>
         )}
 
-        {/* ── Chart or placeholder ── */}
         {curve.length > 0 ? (
           <div>
             <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 9, letterSpacing: 2,

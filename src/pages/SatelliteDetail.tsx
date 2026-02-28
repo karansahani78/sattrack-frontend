@@ -1,60 +1,205 @@
 import { useParams, Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { ArrowLeft, Radio, AlertTriangle, Maximize2, Minimize2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, AlertTriangle, Maximize2, Minimize2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { WorldMap } from '../components/WorldMap';
 import { SatelliteInfoPanel } from '../components/SatelliteInfoPanel';
-import { useLivePosition, useOrbitalTrack, useSatellitePasses, useDoppler, useSatelliteConjunctions } from '../hooks';
+import { useLivePosition, useOrbitalTrack, useSatelliteConjunctions } from '../hooks';
 import { satelliteApi } from '../services/api';
 import type { SatelliteSummary, TleInfo } from '../types';
-import { format, addHours, subHours, formatISO } from 'date-fns';
+import { format, addMinutes, subMinutes, formatISO } from 'date-fns';
 import { useStore } from '../stores/useStore';
 
-type Tab = 'track' | 'predict' | 'tle' | 'passes' | 'doppler';
+type Tab = 'track' | 'predict' | 'tle';
+
+/* ── orbit range options ─────────────────────────────────────── */
+type OrbitRange = { label: string; minutes: number; interval: number };
+const ORBIT_RANGES: OrbitRange[] = [
+  { label: '±30 min', minutes: 30,  interval: 5  },
+  { label: '±90 min', minutes: 90,  interval: 10 },
+  { label: '±3 hr',   minutes: 180, interval: 15 },
+  { label: '±6 hr',   minutes: 360, interval: 20 },
+];
 
 const C = {
-  cyan:   '#00d4ff',
-  green:  '#39ff14',
-  orange: '#ff7e35',
-  yellow: '#ffd060',
-  red:    '#ff3344',
-  muted:  'rgba(140,180,210,.55)',
-  border: 'rgba(0,200,255,.12)',
-  surface:'rgba(5,12,35,.95)',
+  cyan:    '#00d4ff',
+  green:   '#39ff14',
+  orange:  '#ff7e35',
+  yellow:  '#ffd060',
+  red:     '#ff3344',
+  muted:   'rgba(140,180,210,.55)',
+  border:  'rgba(0,200,255,.12)',
+  surface: 'rgba(5,12,35,.95)',
 };
 
-const RISK_COLOR: Record<string, string> = {
-  LOW: C.green, MEDIUM: C.yellow, HIGH: C.orange, CRITICAL: C.red,
-};
+/* ══════════════════════════════════════════════════════════════
+   SHOW ORBIT CONTROL  — only rendered inside fullscreen header
+══════════════════════════════════════════════════════════════ */
+function ShowOrbitControl({
+  showOrbit, onToggle, activeRange, onRangeChange,
+}: {
+  showOrbit: boolean;
+  onToggle: () => void;
+  activeRange: OrbitRange;
+  onRangeChange: (r: OrbitRange) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
+
+      {/* SHOW ORBIT toggle */}
+      <button
+        onClick={onToggle}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 7,
+          padding: '6px 11px',
+          background: showOrbit ? 'rgba(0,200,255,.12)' : 'rgba(2,6,20,.93)',
+          border: `1px solid ${showOrbit ? C.cyan : 'rgba(0,200,255,.3)'}`,
+          color: showOrbit ? C.cyan : C.muted,
+          cursor: 'pointer',
+          fontFamily: "'Orbitron',monospace", fontSize: 8, letterSpacing: 2,
+          backdropFilter: 'blur(10px)',
+          boxShadow: showOrbit ? '0 0 14px rgba(0,200,255,.22)' : '0 0 14px rgba(0,200,255,.1)',
+          transition: 'all .18s',
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'rgba(0,200,255,.18)';
+          e.currentTarget.style.boxShadow = '0 0 18px rgba(0,200,255,.35)';
+          e.currentTarget.style.color = C.cyan;
+          e.currentTarget.style.borderColor = C.cyan;
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = showOrbit ? 'rgba(0,200,255,.12)' : 'rgba(2,6,20,.93)';
+          e.currentTarget.style.boxShadow = showOrbit ? '0 0 14px rgba(0,200,255,.22)' : '0 0 14px rgba(0,200,255,.1)';
+          e.currentTarget.style.color = showOrbit ? C.cyan : C.muted;
+          e.currentTarget.style.borderColor = showOrbit ? C.cyan : 'rgba(0,200,255,.3)';
+        }}
+      >
+        <span style={{
+          width: 11, height: 11,
+          border: `1.5px solid ${showOrbit ? C.cyan : 'rgba(0,200,255,.4)'}`,
+          borderRadius: 2, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          background: showOrbit ? `${C.cyan}22` : 'transparent', flexShrink: 0,
+          transition: 'all .18s',
+        }}>
+          {showOrbit && (
+            <svg width="7" height="6" viewBox="0 0 7 6" fill="none">
+              <polyline points="1,3 3,5 6,1" stroke={C.cyan} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </span>
+        SHOW ORBIT
+      </button>
+
+      {/* time-range pill — only when orbit is on */}
+      {showOrbit && (
+        <button
+          onClick={() => setOpen(o => !o)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '6px 10px',
+            background: open ? 'rgba(0,200,255,.18)' : 'rgba(2,6,20,.93)',
+            border: `1px solid ${C.cyan}`,
+            borderLeft: 'none',
+            color: C.cyan,
+            cursor: 'pointer',
+            fontFamily: "'Share Tech Mono',monospace", fontSize: 9, letterSpacing: 1,
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 0 14px rgba(0,200,255,.18)',
+            transition: 'all .18s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,200,255,.22)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = open ? 'rgba(0,200,255,.18)' : 'rgba(2,6,20,.93)'; }}
+        >
+          {activeRange.label}
+          <svg width="8" height="5" viewBox="0 0 8 5" fill="none"
+            style={{ transition: 'transform .2s', transform: open ? 'rotate(180deg)' : 'none' }}>
+            <polyline points="1,1 4,4 7,1" stroke={C.cyan} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      )}
+
+      {/* dropdown */}
+      {showOrbit && open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', right: 0,
+          minWidth: 120,
+          background: 'rgba(2,6,20,.98)',
+          border: `1px solid ${C.cyan}44`,
+          boxShadow: '0 8px 32px rgba(0,0,0,.6), 0 0 20px rgba(0,200,255,.12)',
+          zIndex: 10100,
+          overflow: 'hidden',
+        }}>
+          {ORBIT_RANGES.map(r => {
+            const active = r.minutes === activeRange.minutes;
+            return (
+              <button
+                key={r.label}
+                onClick={() => { onRangeChange(r); setOpen(false); }}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  width: '100%', padding: '8px 12px',
+                  background: active ? 'rgba(0,200,255,.1)' : 'transparent',
+                  border: 'none',
+                  borderBottom: '1px solid rgba(0,200,255,.06)',
+                  color: active ? C.cyan : C.muted,
+                  cursor: 'pointer',
+                  fontFamily: "'Share Tech Mono',monospace", fontSize: 10, letterSpacing: 1,
+                  textAlign: 'left' as const,
+                  transition: 'background .15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,200,255,.12)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = active ? 'rgba(0,200,255,.1)' : 'transparent'; }}
+              >
+                <span>{r.label}</span>
+                {active && (
+                  <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                    <polyline points="1,3.5 3.5,6 8,1" stroke={C.cyan} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+══════════════════════════════════════════════════════════════ */
 export function SatelliteDetail() {
   const { noradId } = useParams<{ noradId: string }>();
-  const { setSelectedSatellite, observerLocation } = useStore();
+  const { setSelectedSatellite } = useStore();
   const [satellite, setSatellite] = useState<SatelliteSummary | null>(null);
   const [tleInfo, setTleInfo] = useState<TleInfo | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('track');
   const [predictMinutes, setPredictMinutes] = useState(10);
   const [mapFullscreen, setMapFullscreen] = useState(false);
-  const [dopplerFreq, setDopplerFreq] = useState(437.55);
+
+  /* orbit state — shared between normal + fullscreen */
+  const [showOrbit, setShowOrbit]     = useState(true);
+  const [activeRange, setActiveRange] = useState<OrbitRange>(ORBIT_RANGES[1]); // default ±90 min
 
   const { position, loading, refresh } = useLivePosition(noradId || null);
 
-  const now = new Date();
-  const trackStart = formatISO(subHours(now, 1));
-  const trackEnd   = formatISO(addHours(now, 1));
-  const { track }  = useOrbitalTrack(noradId || null, trackStart, trackEnd, 30);
-
-  const { passes, loading: passesLoading, error: passesError } = useSatellitePasses(
-    activeTab === 'passes' ? noradId || null : null,
-    observerLocation?.lat, observerLocation?.lon,
-    { days: 3, minElevation: 10 }
+  const now        = new Date();
+  const trackStart = formatISO(subMinutes(now, activeRange.minutes));
+  const trackEnd   = formatISO(addMinutes(now, activeRange.minutes));
+  const { track }  = useOrbitalTrack(
+    noradId || null, trackStart, trackEnd, activeRange.interval,
   );
-
-  const dopplerReq = (activeTab === 'doppler' && noradId && observerLocation)
-    ? { noradId, observerLat: observerLocation.lat, observerLon: observerLocation.lon,
-        observerAltMeters: (observerLocation.alt || 0) * 1000, frequencyMhz: dopplerFreq }
-    : null;
-  const { result: dopplerResult, loading: dopplerLoading, fetchCurrent } = useDoppler(dopplerReq);
 
   const { conjunctions } = useSatelliteConjunctions(
     activeTab === 'tle' ? null : noradId || null
@@ -67,13 +212,11 @@ export function SatelliteDetail() {
     satelliteApi.tle(noradId).then(setTleInfo).catch(() => {});
   }, [noradId, setSelectedSatellite]);
 
-  // Lock body scroll in fullscreen
   useEffect(() => {
     document.body.style.overflow = mapFullscreen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [mapFullscreen]);
 
-  // ESC exits fullscreen
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setMapFullscreen(false); };
     window.addEventListener('keydown', handler);
@@ -83,6 +226,9 @@ export function SatelliteDetail() {
   if (!noradId) return null;
 
   const positions = position ? { [noradId]: position } : {};
+  /* in normal view always show orbit; showOrbit toggle only applies in fullscreen */
+  const trackPtsNormal     = track?.points;
+  const trackPtsFullscreen = showOrbit ? track?.points : undefined;
 
   const chartData = track?.points.slice(0, 60).map(p => ({
     time:     format(new Date(p.timestamp), 'HH:mm'),
@@ -93,25 +239,16 @@ export function SatelliteDetail() {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'track',   label: 'Track'    },
     { key: 'predict', label: 'Predict'  },
-    { key: 'passes',  label: 'Passes'   },
-    { key: 'doppler', label: 'Doppler'  },
     { key: 'tle',     label: 'TLE Data' },
   ];
 
-  /* ════════════════════════════════════════════════════════════
-     FULLSCREEN MODE
-     zIndex hierarchy:
-       WorldMap internals  → max 460
-       Fullscreen wrapper  → 9999
-       Fullscreen header   → 10001  (always visible above map)
-  ════════════════════════════════════════════════════════════ */
+  /* ══ FULLSCREEN — ShowOrbitControl lives here only ══════════ */
   if (mapFullscreen) {
     return (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: '#020a18', display: 'flex', flexDirection: 'column',
       }}>
-        {/* Header bar — stays above everything in WorldMap */}
         <div style={{
           position: 'relative', zIndex: 10001,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -120,7 +257,7 @@ export function SatelliteDetail() {
           borderBottom: `1px solid ${C.border}`,
           flexShrink: 0,
         }}>
-          {/* Left: name + live stats */}
+          {/* left: name + live stats */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
             <span style={{
               fontFamily: "'Orbitron',monospace", fontSize: 13, fontWeight: 700,
@@ -139,7 +276,6 @@ export function SatelliteDetail() {
                 &nbsp;·&nbsp;{(position.speedKmPerS ?? 0).toFixed(2)} km/s
               </span>
             )}
-            {/* ESC hint chip */}
             <span style={{
               fontFamily: "'Share Tech Mono',monospace", fontSize: 9,
               color: 'rgba(0,200,255,.3)', letterSpacing: 1,
@@ -150,38 +286,44 @@ export function SatelliteDetail() {
             </span>
           </div>
 
-          {/* Right: exit button */}
-          <button
-            onClick={() => setMapFullscreen(false)}
-            style={{
-              flexShrink: 0,
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '7px 16px',
-              background: 'rgba(255,51,68,.08)',
-              border: '1px solid rgba(255,51,68,.35)',
-              color: '#ff3344', cursor: 'pointer',
-              fontFamily: "'Orbitron',monospace", fontSize: 9, letterSpacing: 2,
-              transition: 'all .18s',
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(255,51,68,.2)';
-              e.currentTarget.style.boxShadow = '0 0 18px rgba(255,51,68,.35)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'rgba(255,51,68,.08)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-          >
-            <Minimize2 style={{ width: 13, height: 13 }} />
-            EXIT FULLSCREEN
-          </button>
+          {/* right: Show Orbit control + Exit — ONLY HERE */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <ShowOrbitControl
+              showOrbit={showOrbit}
+              onToggle={() => setShowOrbit(v => !v)}
+              activeRange={activeRange}
+              onRangeChange={setActiveRange}
+            />
+            <button
+              onClick={() => setMapFullscreen(false)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '7px 16px',
+                background: 'rgba(255,51,68,.08)',
+                border: '1px solid rgba(255,51,68,.35)',
+                color: '#ff3344', cursor: 'pointer',
+                fontFamily: "'Orbitron',monospace", fontSize: 9, letterSpacing: 2,
+                transition: 'all .18s',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(255,51,68,.2)';
+                e.currentTarget.style.boxShadow = '0 0 18px rgba(255,51,68,.35)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'rgba(255,51,68,.08)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              <Minimize2 style={{ width: 13, height: 13 }} />
+              EXIT FULLSCREEN
+            </button>
+          </div>
         </div>
 
-        {/* Map — fills everything below the header */}
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           <WorldMap
             positions={positions}
-            trackPoints={track?.points}
+            trackPoints={trackPtsFullscreen}
             selectedNoradId={noradId}
           />
         </div>
@@ -189,13 +331,10 @@ export function SatelliteDetail() {
     );
   }
 
-  /* ════════════════════════════════════════════════════════════
-     NORMAL LAYOUT
-  ════════════════════════════════════════════════════════════ */
+  /* ══ NORMAL LAYOUT — no ShowOrbitControl anywhere ═══════════ */
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 16px' }}>
 
-      {/* Back link */}
       <Link
         to="/satellites?list=true"
         style={{
@@ -242,7 +381,7 @@ export function SatelliteDetail() {
                 const active = activeTab === key;
                 return (
                   <button key={key} onClick={() => setActiveTab(key)} style={{
-                    flexShrink: 0, padding: '10px 12px', fontSize: 10,
+                    flexShrink: 0, padding: '10px 16px', fontSize: 10,
                     fontFamily: "'Share Tech Mono',monospace", letterSpacing: 1.5,
                     fontWeight: active ? 700 : 400,
                     color:  active ? C.cyan : C.muted,
@@ -258,6 +397,7 @@ export function SatelliteDetail() {
             </div>
 
             <div style={{ padding: 16 }}>
+
               {activeTab === 'track' && (
                 <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 11, color: C.muted, lineHeight: 1.8 }}>
                   <p style={{ color: '#e2f0ff', marginBottom: 4 }}>Showing ±60 min orbit track</p>
@@ -278,18 +418,6 @@ export function SatelliteDetail() {
                   </div>
                   <PredictButton noradId={noradId} minutes={predictMinutes} />
                 </div>
-              )}
-
-              {activeTab === 'passes' && (
-                <PassesPanel passes={passes} loading={passesLoading} error={passesError} hasObserver={!!(observerLocation?.lat)} />
-              )}
-
-              {activeTab === 'doppler' && (
-                <DopplerPanel
-                  noradId={noradId} freq={dopplerFreq} onFreqChange={setDopplerFreq}
-                  result={dopplerResult} loading={dopplerLoading}
-                  hasObserver={!!(observerLocation?.lat)} onFetch={fetchCurrent}
-                />
               )}
 
               {activeTab === 'tle' && tleInfo && (
@@ -315,21 +443,18 @@ export function SatelliteDetail() {
         {/* ── RIGHT COLUMN ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* Map + fullscreen button */}
+          {/* Map — no ShowOrbitControl overlay here */}
           <div style={{
             position: 'relative', background: C.surface,
             border: `1px solid ${C.border}`, overflow: 'hidden', height: 480,
           }}>
             <WorldMap
               positions={positions}
-              trackPoints={track?.points}
+              trackPoints={trackPtsNormal}
               selectedNoradId={noradId}
             />
 
-            {/* ── FULLSCREEN BUTTON
-                • bottom: 48px  → clears the Leaflet zoom control (≈ 80px tall, bottom-right)
-                • right:  10px  → aligns with zoom control column
-                • zIndex: 600   → above WorldMap's highest overlay at zIndex 460             */}
+            {/* only the fullscreen button, nothing else */}
             <button
               onClick={() => setMapFullscreen(true)}
               title="Fullscreen map"
@@ -399,131 +524,6 @@ export function SatelliteDetail() {
         ::-webkit-scrollbar-track { background:transparent; }
         ::-webkit-scrollbar-thumb { background:rgba(0,200,255,.2); border-radius:2px; }
       `}</style>
-    </div>
-  );
-}
-
-/* ── PASSES PANEL ─────────────────────────────────────────────────────────── */
-function PassesPanel({ passes, loading, error, hasObserver }: {
-  passes: ReturnType<typeof useSatellitePasses>['passes'];
-  loading: boolean; error: string | null; hasObserver: boolean;
-}) {
-  if (!hasObserver) return (
-    <div style={{ textAlign: 'center', padding: '20px 0', color: C.muted,
-      fontFamily: "'Share Tech Mono',monospace", fontSize: 11, letterSpacing: 1, lineHeight: 2 }}>
-      <Radio style={{ width: 24, height: 24, margin: '0 auto 8px', opacity: .3, display: 'block' }} />
-      Set your location on the map<br />to see upcoming passes
-    </div>
-  );
-  if (loading) return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {[1,2,3].map(i => (
-        <div key={i} style={{ height: 48,
-          background: 'linear-gradient(90deg,rgba(0,200,255,.04),rgba(0,200,255,.08),rgba(0,200,255,.04))',
-          backgroundSize: '300% 100%', animation: 'shimmer 1.8s infinite' }} />
-      ))}
-    </div>
-  );
-  if (error) return <div style={{ color: C.red, fontFamily: "'Share Tech Mono',monospace", fontSize: 11, padding: '8px 0' }}>{error}</div>;
-  if (!passes.length) return (
-    <div style={{ color: C.muted, fontFamily: "'Share Tech Mono',monospace", fontSize: 11, textAlign: 'center', padding: '16px 0' }}>
-      No passes found in next 3 days
-    </div>
-  );
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
-      {passes.slice(0, 10).map((p, i) => (
-        <div key={i} style={{
-          padding: '8px 10px',
-          background: p.visible ? 'rgba(57,255,20,.04)' : 'rgba(0,200,255,.03)',
-          border: `1px solid ${p.visible ? 'rgba(57,255,20,.2)' : 'rgba(0,200,255,.1)'}`,
-          fontFamily: "'Share Tech Mono',monospace", fontSize: 10,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ color: '#e2f0ff', letterSpacing: 1 }}>{format(new Date(p.aos), 'MMM dd HH:mm:ss')}</span>
-            <span style={{ color: C.orange, letterSpacing: 1, fontWeight: 'bold' }}>{p.maxElevation.toFixed(1)}° max</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: C.muted }}>
-            <span>{p.aosDirection} → {p.losDirection}</span>
-            <span>{p.durationLabel}</span>
-          </div>
-          {p.visible && <div style={{ marginTop: 3, color: C.green, fontSize: 9, letterSpacing: 1 }}>★ VISIBLE</div>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ── DOPPLER PANEL ────────────────────────────────────────────────────────── */
-function DopplerPanel({ noradId, freq, onFreqChange, result, loading, hasObserver, onFetch }: {
-  noradId: string; freq: number; onFreqChange: (f: number) => void;
-  result: ReturnType<typeof useDoppler>['result']; loading: boolean;
-  hasObserver: boolean; onFetch: () => void;
-}) {
-  const PRESETS = [
-    { label: 'ISS APRS',   freq: 145.825 },
-    { label: 'ISS Voice',  freq: 437.550 },
-    { label: 'NOAA-19',    freq: 137.100 },
-    { label: '2m Amateur', freq: 145.500 },
-    { label: '70cm UHF',   freq: 435.000 },
-  ];
-  if (!hasObserver) return (
-    <div style={{ textAlign: 'center', padding: '20px 0', color: C.muted,
-      fontFamily: "'Share Tech Mono',monospace", fontSize: 11, letterSpacing: 1, lineHeight: 2 }}>
-      <Radio style={{ width: 24, height: 24, margin: '0 auto 8px', opacity: .3, display: 'block' }} />
-      Set your location to calculate<br />Doppler shift
-    </div>
-  );
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div>
-        <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 9, color: C.muted, letterSpacing: 1, marginBottom: 6 }}>NOMINAL FREQUENCY (MHz)</div>
-        <input type="number" value={freq} step="0.001" min="100" max="3000"
-          onChange={e => onFreqChange(Number(e.target.value))}
-          style={{ width: '100%', background: 'rgba(0,200,255,.05)', border: `1px solid ${C.border}`,
-            padding: '6px 10px', color: C.cyan, fontFamily: "'Share Tech Mono',monospace",
-            fontSize: 14, letterSpacing: 1, outline: 'none', boxSizing: 'border-box' as const }} />
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 4 }}>
-        {PRESETS.map(p => (
-          <button key={p.label} onClick={() => onFreqChange(p.freq)} style={{
-            padding: '3px 8px',
-            background: freq === p.freq ? 'rgba(0,200,255,.15)' : 'rgba(0,200,255,.05)',
-            border: `1px solid ${freq === p.freq ? C.cyan : C.border}`,
-            color: freq === p.freq ? C.cyan : C.muted,
-            fontFamily: "'Share Tech Mono',monospace", fontSize: 8, letterSpacing: 0.5, cursor: 'pointer',
-          }}>{p.label}</button>
-        ))}
-      </div>
-      <button onClick={onFetch} disabled={loading} style={{
-        padding: '8px', background: 'rgba(0,200,255,.08)', border: `1px solid ${C.border}`,
-        color: C.cyan, fontFamily: "'Orbitron',monospace", fontSize: 9, letterSpacing: 2,
-        cursor: 'pointer', opacity: loading ? 0.5 : 1, transition: 'all .2s',
-      }}>
-        {loading ? 'COMPUTING...' : 'COMPUTE DOPPLER'}
-      </button>
-      {result && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {([
-            ['NOMINAL',    `${result.nominalFrequencyMhz.toFixed(3)} MHz`,   C.muted],
-            ['OBSERVED',   `${result.observedFrequencyMhz.toFixed(6)} MHz`,  C.cyan],
-            ['SHIFT',      `${result.dopplerShiftHz > 0 ? '+' : ''}${result.dopplerShiftHz.toFixed(1)} Hz`,
-              result.dopplerShiftHz > 0 ? C.green : result.dopplerShiftHz < 0 ? C.orange : C.muted],
-            ['RADIAL VEL', `${result.radialVelocityKms > 0 ? '+' : ''}${result.radialVelocityKms.toFixed(3)} km/s`,
-              result.radialVelocityKms < 0 ? C.green : C.orange],
-            ['ELEVATION',  `${result.elevationDeg.toFixed(1)}°`,             C.yellow],
-            ['RANGE',      `${result.rangKm.toFixed(1)} km`,                 C.muted],
-          ] as [string, string, string][]).map(([k, v, color]) => (
-            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: `1px solid rgba(0,200,255,.06)` }}>
-              <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 9, letterSpacing: 1, color: C.muted }}>{k}</span>
-              <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 11, fontWeight: 'bold', color }}>{v}</span>
-            </div>
-          ))}
-          <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 8, color: 'rgba(0,200,255,.2)', textAlign: 'right', marginTop: 2 }}>
-            {format(new Date(result.computedAt), 'HH:mm:ss')} UTC
-          </div>
-        </div>
-      )}
     </div>
   );
 }
