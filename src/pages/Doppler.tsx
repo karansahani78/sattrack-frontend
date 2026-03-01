@@ -10,10 +10,11 @@
  * Sending a multi-day window causes ~570 000 iterations → timeout / empty response.
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useDoppler } from '../hooks';
 import type { DopplerRequest } from '../types';
 import { Activity, Radio, MapPin, Zap, ChevronRight, AlertCircle, Loader } from 'lucide-react';
+import { useStore } from '../stores/useStore';
 
 const MAX_CURVE_MINUTES = 20;
 
@@ -376,19 +377,28 @@ function windowMinutes(start: string, end: string): number {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export function Doppler() {
-  const [noradId, setNoradId] = useState('25544');
-  const [lat,     setLat]     = useState('');
-  const [lon,     setLon]     = useState('');
-  const [alt,     setAlt]     = useState('0');
-  const [freqMhz, setFreqMhz] = useState('437.550');
+  // ── Cache from store ──────────────────────────────────────────────────────
+  const { dopplerCache, setDopplerCache, clearDopplerCache } = useStore();
 
-  const [passStart, setPassStart] = useState('');
-  const [passEnd,   setPassEnd]   = useState('');
+  // ── Form state — seed from cache, fallback to original defaults ───────────
+  const [noradId,   setNoradId]   = useState(dopplerCache?.noradId   ?? '25544');
+  const [lat,       setLat]       = useState(dopplerCache?.lat       ?? '');
+  const [lon,       setLon]       = useState(dopplerCache?.lon       ?? '');
+  const [alt,       setAlt]       = useState(dopplerCache?.alt       ?? '0');
+  const [freqMhz,   setFreqMhz]   = useState(dopplerCache?.freqMhz   ?? '437.550');
+  const [passStart, setPassStart] = useState(dopplerCache?.passStart ?? '');
+  const [passEnd,   setPassEnd]   = useState(dopplerCache?.passEnd   ?? '');
 
   // ── Locate state ──────────────────────────────────────────────────────────
-  const [locating,  setLocating]  = useState(false);
-  const [locError,  setLocError]  = useState('');
-  const [locLabel,  setLocLabel]  = useState('');
+  const [locating, setLocating] = useState(false);
+  const [locError, setLocError] = useState('');
+  const [locLabel, setLocLabel] = useState(dopplerCache?.locLabel ?? '');
+
+  // ── Cached display data — this is what the UI renders ────────────────────
+  // Seeded from store on mount. Updated after each successful fetch.
+  // This is the KEY fix: we own result/curve locally, not via the hook.
+  const [displayResult, setDisplayResult] = useState<any>(dopplerCache?.result ?? null);
+  const [displayCurve,  setDisplayCurve]  = useState<any[]>(dopplerCache?.curve ?? []);
 
   // ── Build request ─────────────────────────────────────────────────────────
   const buildReq = useCallback((): DopplerRequest | null => {
@@ -405,7 +415,34 @@ export function Doppler() {
   }, [noradId, lat, lon, alt, freqMhz]);
 
   const req = buildReq();
+
+  // ── useDoppler hook — called exactly as original, not modified ────────────
   const { result, curve, loading, error, fetchCurrent, fetchCurve } = useDoppler(req);
+
+  // ── Sync hook output → local display state + store after each fetch ───────
+  // When the hook gets fresh data (result/curve change from null/[] to real data),
+  // copy it into displayResult/displayCurve and persist to store.
+  useEffect(() => {
+    if (result == null) return;
+    setDisplayResult(result);
+    setDopplerCache({
+      noradId, lat, lon, alt, freqMhz, passStart, passEnd, locLabel,
+      result: result as Record<string, unknown>,
+      curve:  displayCurve as Record<string, unknown>[],
+      computedAt: new Date().toISOString(),
+    });
+  }, [result]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!curve || curve.length === 0) return;
+    setDisplayCurve(curve as any[]);
+    setDopplerCache({
+      noradId, lat, lon, alt, freqMhz, passStart, passEnd, locLabel,
+      result: displayResult as Record<string, unknown> | null,
+      curve:  curve as Record<string, unknown>[],
+      computedAt: new Date().toISOString(),
+    });
+  }, [curve]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Locate handler (mirrors WorldMap GPS approach) ────────────────────────
   const locateAndFill = () => {
@@ -467,10 +504,10 @@ export function Doppler() {
   passStart && passEnd
     ? (Date.parse(passEnd + 'Z') - Date.parse(passStart + 'Z')) / 60000
     : 0;
-  const windowTooLong = winMins > MAX_CURVE_MINUTES;
+  const windowTooLong  = winMins > MAX_CURVE_MINUTES;
   const windowNegative = winMins < 0;
-  const windowOk     = passStart && passEnd && !windowTooLong && !windowNegative && winMins > 0;
-  const canCurve     = canSubmit && !!windowOk;
+  const windowOk       = passStart && passEnd && !windowTooLong && !windowNegative && winMins > 0;
+  const canCurve       = canSubmit && !!windowOk;
 
   // ── Formatters ────────────────────────────────────────────────────────────
   const fmtShift = (hz?: number) => {
@@ -482,8 +519,8 @@ export function Doppler() {
   };
   const fmtMhz = (mhz?: number) => mhz == null ? '—' : `${mhz.toFixed(6)} MHz`;
 
-  // ── Backend response fields ───────────────────────────────────────────────
-  const r          = result as any;
+  // ── Display values — always from local state (cache-first) ────────────────
+  const r          = displayResult as any;
   const shift      = r?.dopplerShiftHz       as number | undefined;
   const obsFreq    = r?.observedFrequencyMhz as number | undefined;
   const radialV    = r?.radialVelocityKms    as number | undefined;
@@ -491,9 +528,13 @@ export function Doppler() {
   const rangKm     = r?.rangKm               as number | undefined;
   const computedAt = r?.computedAt           as string | undefined;
 
-  // curve items may carry: dopplerShiftHz, observedFrequencyMhz, radialVelocityKms, elevationDeg, rangKm, computedAt
-  const curveAny    = curve as any[];
+  const curveAny    = displayCurve as any[];
   const curveShifts = curveAny.map(d => (d.dopplerShiftHz ?? 0) as number);
+
+  // Cache age hint
+  const cacheAge = dopplerCache
+    ? Math.floor((Date.now() - new Date(dopplerCache.computedAt).getTime()) / 60_000)
+    : null;
 
   return (
     <div style={{ minHeight: '100vh', background: '#030712',
@@ -582,7 +623,7 @@ export function Doppler() {
           </div>
         )}
 
-        <div style={{ marginTop: 20 }}>
+        <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={fetchCurrent} disabled={!canSubmit}
             style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 28px',
               background: canSubmit ? 'rgba(0,200,255,.12)' : 'rgba(0,200,255,.03)',
@@ -595,6 +636,31 @@ export function Doppler() {
               : <><Activity style={{ width: 13, height: 13 }} /> CALCULATE NOW</>
             }
           </button>
+
+          {/* Cache staleness hint */}
+          {cacheAge !== null && !loading && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '5px 10px',
+              background: 'rgba(0,200,255,.03)', border: '1px solid rgba(0,200,255,.12)',
+              fontFamily: "'Share Tech Mono',monospace", fontSize: 9,
+              color: 'rgba(0,200,255,.4)', letterSpacing: 1,
+            }}>
+              <span>{cacheAge < 1 ? 'computed just now' : `computed ${cacheAge}m ago`}</span>
+              <button
+                onClick={() => {
+                  clearDopplerCache();
+                  setDisplayResult(null);
+                  setDisplayCurve([]);
+                }}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,68,102,.6)',
+                  fontFamily: "'Share Tech Mono',monospace", fontSize: 9,
+                  cursor: 'pointer', letterSpacing: 1, padding: 0 }}
+              >
+                CLEAR
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -608,7 +674,7 @@ export function Doppler() {
       )}
 
       {/* ── Live result cards ── */}
-      {result && (
+      {displayResult && (
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 9, letterSpacing: 3,
             color: 'rgba(0,200,255,.4)', marginBottom: 14,
@@ -692,7 +758,6 @@ export function Doppler() {
               if (!windowOk) return;
               const startIso = passStart + ':00Z';
               const endIso   = passEnd + ':00Z';
-              
               fetchCurve(startIso, endIso);
             }}
             disabled={!canCurve}
@@ -742,11 +807,11 @@ export function Doppler() {
         )}
 
         {/* ── Chart or placeholder ── */}
-        {curve.length > 0 ? (
+        {displayCurve.length > 0 ? (
           <div>
             <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 9, letterSpacing: 2,
               color: 'rgba(0,200,255,.3)', marginBottom: 12 }}>
-              FREQUENCY SHIFT OVER PASS · {curve.length} SAMPLES
+              FREQUENCY SHIFT OVER PASS · {displayCurve.length} SAMPLES
             </div>
             <DopplerCurveChart data={curveAny} />
             <div style={{ display: 'grid',
@@ -758,7 +823,7 @@ export function Doppler() {
               <StatCard label="TOTAL SHIFT RANGE"
                 value={fmtShift(Math.max(...curveShifts) - Math.min(...curveShifts))}
                 sub="peak-to-peak" />
-              <StatCard label="SAMPLES" value={String(curve.length)} sub="over pass window" />
+              <StatCard label="SAMPLES" value={String(displayCurve.length)} sub="over pass window" />
             </div>
           </div>
         ) : (

@@ -38,27 +38,28 @@ function SectionLabel({ children }: { children: string }) {
 }
 
 export function Passes() {
-  const { observerLocation, setObserverLocation } = useStore();
+  // ── Pull cache from store alongside existing store values ─────────────────
+  const { observerLocation, setObserverLocation, passesCache, setPassesCache } = useStore();
 
-  // Observer form state
-  const [lat, setLat] = useState(observerLocation?.lat?.toString() ?? '');
-  const [lon, setLon] = useState(observerLocation?.lon?.toString() ?? '');
-  const [alt, setAlt] = useState('0');
-  const [days, setDays] = useState(3);
-  const [minEl, setMinEl] = useState(10);
-  const [visibleOnly, setVisibleOnly] = useState(false);
+  // Observer form state — seed from cache if available, fallback to original logic
+  const [lat, setLat] = useState(passesCache?.lat?.toString() ?? observerLocation?.lat?.toString() ?? '');
+  const [lon, setLon] = useState(passesCache?.lon?.toString() ?? observerLocation?.lon?.toString() ?? '');
+  const [alt, setAlt] = useState(passesCache?.alt?.toString() ?? '0');
+  const [days, setDays] = useState(passesCache?.days ?? 3);
+  const [minEl, setMinEl] = useState(passesCache?.minEl ?? 10);
+  const [visibleOnly, setVisibleOnly] = useState(passesCache?.visibleOnly ?? false);
 
-  // Satellite selection
-  const [noradId, setNoradId] = useState('25544');
-  const [noradInput, setNoradInput] = useState('25544');
+  // Satellite selection — seed from cache if available
+  const [noradId, setNoradId] = useState(passesCache?.noradId ?? '25544');
+  const [noradInput, setNoradInput] = useState(passesCache?.noradId ?? '25544');
 
-  // Results
-  const [passes, setPasses] = useState<PassSummary[]>([]);
+  // Results — restored from cache immediately, no re-fetch needed
+  const [passes, setPasses] = useState<PassSummary[]>(passesCache?.passes ?? []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [computed, setComputed] = useState(false);
+  const [computed, setComputed] = useState(passesCache !== null);
 
-  // Locate me
+  // Locate me — unchanged
   const locateMe = () => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition((pos) => {
@@ -89,14 +90,32 @@ export function Passes() {
       setPasses(result);
       setComputed(true);
       setObserverLocation({ lat: latN, lon: lonN, alt: altN, label: `${latN.toFixed(3)}°, ${lonN.toFixed(3)}°` });
+
+      // ── Save results to store so they survive navigation ──────────────────
+      setPassesCache({
+        passes: result,
+        noradId: noradInput.trim(),
+        lat: latN,
+        lon: lonN,
+        alt: altN,
+        days,
+        minEl,
+        visibleOnly,
+        computedAt: new Date().toISOString(),
+      });
     } catch {
       setError('Pass prediction failed — check NORAD ID and coordinates');
     } finally {
       setLoading(false);
     }
-  }, [lat, lon, alt, days, minEl, visibleOnly, noradInput, setObserverLocation]);
+  }, [lat, lon, alt, days, minEl, visibleOnly, noradInput, setObserverLocation, setPassesCache]);
 
   const visibleCount = passes.filter(p => p.visible).length;
+
+  // Cache age for the hint label
+  const cacheAge = passesCache
+    ? Math.floor((Date.now() - new Date(passesCache.computedAt).getTime()) / 60_000)
+    : null;
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px' }}>
@@ -254,6 +273,24 @@ export function Passes() {
           {error && (
             <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(255,51,68,.08)', border: '1px solid rgba(255,51,68,.3)', color: C.red, fontFamily: "'Share Tech Mono',monospace", fontSize: 10 }}>
               {error}
+            </div>
+          )}
+
+          {/* Cache staleness hint — only shown when results are cached */}
+          {cacheAge !== null && !loading && (
+            <div style={{
+              marginTop: 8, padding: '5px 8px',
+              background: 'rgba(0,200,255,.03)', border: `1px solid ${C.border}`,
+              fontFamily: "'Share Tech Mono',monospace", fontSize: 9, color: C.muted, letterSpacing: 1,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span>{cacheAge < 1 ? 'computed just now' : `computed ${cacheAge}m ago`}</span>
+              <button
+                onClick={() => { useStore.getState().clearPassesCache(); setPasses([]); setComputed(false); }}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,68,102,.6)', fontFamily: "'Share Tech Mono',monospace", fontSize: 9, cursor: 'pointer', letterSpacing: 1, padding: 0 }}
+              >
+                CLEAR
+              </button>
             </div>
           )}
         </div>

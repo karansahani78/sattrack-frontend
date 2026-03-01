@@ -1,6 +1,37 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { SatellitePosition, UserProfile, ObserverLocation, SatelliteSummary } from '../types';
+import type { PassSummary } from '../types';
+
+// ─── Passes cache type ────────────────────────────────────────────────────────
+export interface PassesCache {
+  passes:      PassSummary[];
+  noradId:     string;
+  lat:         number;
+  lon:         number;
+  alt:         number;
+  days:        number;
+  minEl:       number;
+  visibleOnly: boolean;
+  computedAt:  string; // ISO string
+}
+
+// ─── Doppler cache type ───────────────────────────────────────────────────────
+export interface DopplerCache {
+  // form inputs
+  noradId:   string;
+  lat:       string;
+  lon:       string;
+  alt:       string;
+  freqMhz:   string;
+  passStart: string;
+  passEnd:   string;
+  locLabel:  string;
+  // results
+  result:    Record<string, unknown> | null;
+  curve:     Record<string, unknown>[];
+  computedAt: string; // ISO string
+}
 
 interface SatelliteStore {
   // Auth
@@ -45,6 +76,16 @@ interface SatelliteStore {
   setUnreadNotificationCount: (count: number) => void;
   incrementUnreadCount: () => void;
   clearUnreadCount: () => void;
+
+  // ── Passes cache (persisted so results survive navigation) ────────────────
+  passesCache: PassesCache | null;
+  setPassesCache: (cache: PassesCache) => void;
+  clearPassesCache: () => void;
+
+  // ── Doppler cache (persisted so results survive navigation) ───────────────
+  dopplerCache: DopplerCache | null;
+  setDopplerCache: (cache: DopplerCache) => void;
+  clearDopplerCache: () => void;
 }
 
 export const useStore = create<SatelliteStore>()(
@@ -131,6 +172,16 @@ export const useStore = create<SatelliteStore>()(
         })),
       clearUnreadCount: () =>
         set({ unreadNotificationCount: 0 }),
+
+      // ── Passes cache ───────────────────────────────────────────────────────
+      passesCache: null,
+      setPassesCache: (cache) => set({ passesCache: cache }),
+      clearPassesCache: () => set({ passesCache: null }),
+
+      // ── Doppler cache ──────────────────────────────────────────────────────
+      dopplerCache: null,
+      setDopplerCache: (cache) => set({ dopplerCache: cache }),
+      clearDopplerCache: () => set({ dopplerCache: null }),
     }),
     {
       name: 'sattrack-store',
@@ -146,6 +197,8 @@ export const useStore = create<SatelliteStore>()(
         favorites: state.favorites,
         selectedNoradId: state.selectedNoradId,
         unreadNotificationCount: state.unreadNotificationCount,
+        passesCache: state.passesCache,   // ← persisted so it survives navigation & refresh
+        dopplerCache: state.dopplerCache, // ← persisted so it survives navigation & refresh
       }),
     }
   )
